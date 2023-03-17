@@ -1,6 +1,9 @@
 package com.example.springbootdemo.util;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -20,7 +23,7 @@ public class JwtUtil {
     public static final Long JWT_TTL = 60 * 60 * 1000L;
 
     // 设置密钥明文
-    public static final String JWT_KEY = "jbf_key";
+    public static final String JWT_KEY = "jbf";
 
     public static String getUUID(){
         String token = UUID.randomUUID().toString().replaceAll("-","");
@@ -109,7 +112,10 @@ public class JwtUtil {
     }
 
     public static void main(String[] args) throws Exception {
-        String token = "eyJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJjYWM2ZDVhZi1mNjVlLTQ0MDAtYjcxMi0zYWEwOGIyOTIwYjQiLCJzdWIiOiJzZyIsImlzcyI6InNnIiwiaWF0IjoxNjM4MTA2NzEyLCJleHAiOjE2MzgxMTAzMTJ9.JVsSbkP94wuczb4QryQbAke3ysBDIL5ou8fWsbt_ebg";
+        System.out.println(createJWT("aaa", 3600000L));
+
+
+        String token = "eyJhbGciOiJIUzI1NiJ9.eyJqdGkiOiI0Y2RjZTczZTYwODk0OTZkOWMzYzgzMjk3MTNkZWMxNiIsInN1YiI6ImFhYSIsImlzcyI6ImpiZiIsImlhdCI6MTY3OTAzODMzMCwiZXhwIjoxNjc5MDM4MzMxfQ.1-GavrVhU5Og7PnWvuOnTHdA8A9B5My9eDRSozfJ0T0";
         Claims claims = parseJWT(token);
         System.out.println(claims);
     }
