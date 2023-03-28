@@ -1,7 +1,6 @@
-package com.example.springbootdemo.mappers;
+package com.example.springbootdemo.mapper;
 
 import com.example.springbootdemo.dao.User;
-import jakarta.annotation.Resource;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 
