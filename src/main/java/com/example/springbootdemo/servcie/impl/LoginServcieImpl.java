@@ -1,10 +1,10 @@
-package com.example.springbootdemo.service.impl;
+package com.example.springbootdemo.servcie.impl;
 
 import com.example.springbootdemo.common.RedisCache;
 import com.example.springbootdemo.common.ResponseResult;
 import com.example.springbootdemo.dao.LoginUser;
 import com.example.springbootdemo.dao.User;
-import com.example.springbootdemo.service.LoginService;
+import com.example.springbootdemo.servcie.LoginServcie;
 import com.example.springbootdemo.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,7 +22,7 @@ import java.util.Objects;
  * @Version 1.0
  */
 @Service
-public class LoginServiceImpl implements LoginService {
+public class LoginServcieImpl implements LoginServcie {
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -32,13 +32,15 @@ public class LoginServiceImpl implements LoginService {
 
     @Override
     public ResponseResult login(User user){
+        // 用户名，密码认证
         UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(user.getUserName(), user.getPassword());
-        Authentication authenticate = authenticationManager.authenticate(authenticationToken);
-        if(Objects.isNull(authenticate)){
+        // authenticationManager.authenticate会调用getUserDetailsService().loadUserByUsername(username);进行身份验证。
+        Authentication authentication = authenticationManager.authenticate(authenticationToken);
+        if(Objects.isNull(authentication)){
             throw new RuntimeException("用户名或密码错误");
         }
         // 使用userid生成token
-        LoginUser loginUser = (LoginUser) authenticate.getPrincipal();
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
         String userId = loginUser.getUser().getId().toString();
         String jwt = JwtUtil.createJWT(userId);
         // authenticate存入redis

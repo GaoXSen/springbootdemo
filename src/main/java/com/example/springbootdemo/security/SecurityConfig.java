@@ -1,32 +1,46 @@
-package com.example.springbootdemo.util;
+package com.example.springbootdemo.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
+ * springboog security 配置
+ *
  * @Author gaosen
  * @Date 2023/3/28 14:34
  * @Version 1.0
  */
 @Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
+//    @Bean
+//    public PasswordEncoder passwordEncoder(){
+//        return new BCryptPasswordEncoder();
+//    }
+
     @Bean
-    public PasswordEncoder passwordEncoder(){
-        return new BCryptPasswordEncoder();
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
     }
 
     @Autowired
     JwtAuthenticationTokenFilter jwtAuthenticationTokenFilter;
+
+//    @Autowired
+//    private AuthenticationEntryPoint authenticationEntryPoint;
+//
+//    @Autowired
+//    private AccessDeniedHandler accessDeniedHandler;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception{
@@ -44,6 +58,16 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
         // 把token校验过滤器添加到过滤器中
         http.addFilterBefore(jwtAuthenticationTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+//        // 配置异常处理器
+//        http.exceptionHandling()
+//                // 配置认证失败处理器
+//                .authenticationEntryPoint(authenticationEntryPoint)
+//                .accessDeniedHandler(accessDeniedHandler);
+
+        // 允许跨域
+        http.cors();
+
     }
 
     @Bean

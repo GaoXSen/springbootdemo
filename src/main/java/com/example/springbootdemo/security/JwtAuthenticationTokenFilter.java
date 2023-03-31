@@ -1,14 +1,14 @@
-package com.example.springbootdemo.util;
+package com.example.springbootdemo.security;
 
 import com.example.springbootdemo.common.RedisCache;
 import com.example.springbootdemo.dao.LoginUser;
+import com.example.springbootdemo.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,10 +17,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.rmi.RemoteException;
 import java.util.Objects;
 
 /**
+ * token认证，根据用户id从redis中获取用户token。根据token获取登录对象存入SecurityContextHolder中
+ *
  * @Author gaosen
  * @Date 2023/3/28 15:47
  * @Version 1.0
@@ -54,13 +55,14 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
         //从redis中获取用户信息
         String redisKey = "login:" + userid;
+        System.out.println(redisCache.getCacheObject(redisKey).toString());
         LoginUser loginUser = redisCache.getCacheObject(redisKey);
         if(Objects.isNull(loginUser)){
             throw new RuntimeException("用户未登录");
         }
 
         // 存入SecurityContextHolder
-        // TODO 获取权限信息封装德奥Authentication中
+        // TODO 获取权限信息封装进入 Authentication 中
         UsernamePasswordAuthenticationToken authenticationToken =
                 new UsernamePasswordAuthenticationToken(loginUser, null, null);
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
