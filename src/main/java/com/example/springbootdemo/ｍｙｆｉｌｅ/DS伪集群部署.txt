@@ -1,0 +1,305 @@
+伪集群部署
+最近更新时间
+2023-05-25
+没有帮助
+伪集群部分目标的是在单机部分DolphinScheduler服务，该模式下master、worker、api server都在同一台机器上
+
+如果你是新手，想体验DolphinScheduler的功能，推荐使用Standalone方式体检。如果你想体验更完整的功能，或者更大的任务量，推荐使用伪集群部署。如果你在生产中使用，推荐使用集团部署或kubernetes
+
+准备工作
+伪分布式部分DolphinScheduler需要有外部软件的支持
+
+JDK：下载JDK (1.8+)，安装并配置JAVA_HOME环境变化，并将其下的bin目录追踪到PATH环境变化中。如果你的环境已经存在，可以跳过这一步。
+二次制作包：在下载页面下载 DolphinScheduler 二次制作包
+数据库：PostgreSQL (8.2.15+) 或者MySQL (5.7+)，两者任选其一即可，如MySQL则需要JDBC Driver 8.0.16
+注册中心：ZooKeeper (3.4.6+)，下载地址
+进程树分析
+macOS 安装pstree
+Fedora/Red/Hat/CentOS/Ubuntu/Debian 安装psmisc
+注意： DolphinScheduler本身不依赖Hadoop、Hive、Spark，但如果你运行的任务需要依赖他们，就需要有对应的环境支持
+
+准备 DolphinScheduler 启动环境
+配置用户免密及权限
+创建部用户，并且一定要配置sudo免密。以创建dolphinscheduler 用户为例
+
+# 创建用户需使用 root 登录
+useradd dolphinscheduler
+
+# 添加密码
+echo "dolphinscheduler" | passwd --stdin dolphinscheduler
+
+# 配置 sudo 免密
+sed -i '$adolphinscheduler  ALL=(ALL)  NOPASSWD: NOPASSWD: ALL' /etc/sudoers
+sed -i 's/Defaults    requirett/#Defaults    requirett/g' /etc/sudoers
+
+# 修改目录权限，使得部署用户对二进制包解压后的 apache-dolphinscheduler-*-bin 目录有操作权限
+chown -R dolphinscheduler:dolphinscheduler apache-dolphinscheduler-*-bin
+注意：
+
+由于任务执行服务是以sudo -u {linux-user}切换不同的linux用户的方式来实现的，现在很多租户运行业务，所以部分用户需要有sudo权限，而并且是免费的密的。初学者不懂的话，完全可以暂时忽略这一点
+如果发现/etc/sudoers文件中有“Defaults requirett”这行，也请注解掉
+配置机器SSH免密登录
+由于安装的时候需要向不同机器发送资源，所以要求各台机器间能够实现SSH免密登陆。配置免密登陆的步骤如下
+
+su dolphinscheduler
+
+ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+注意：配置完成后，可以通过运行命令ssh localhost判断是否成功，如果不需要输入密码就可以ssh登录则证明成功
+
+启动动物园管理员
+进入zookeeper的安装目录，将zoo_sample.cfg配置文件复制到conf/zoo.cfg，并将conf/zoo.cfg中dataDir中的值改成dataDir=./tmp/zookeeper
+
+# 启动 zookeeper
+./bin/zkServer.sh start
+修改相关配置
+完成基础环境的准备后，需要根据你的机器环境修改配置文件。配置文件可以在目录中bin/env找到，他们分别是并命为install_env.sh和dolphinscheduler_env.sh。
+
+修改install_env.sh文件
+文件install_env.sh描述了哪些机器将被安装DolphinScheduler以及每台机器对应安装哪些服务。您可以在路途中找到bin/env/install_env.sh这个文件，可以通过以下方法更改env变量,export <ENV_NAME>=，配置详情如下。
+
+
+mysql -uroot -p
+
+mysql> CREATE DATABASE dolphinscheduler DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+
+# 修改 {dolphinscheduler} 和 {dolphinscheduler} 为你希望的用户名和密码
+mysql> CREATE USER '{dolphinscheduler}'@'%' IDENTIFIED BY '{dolphinscheduler}';
+mysql> GRANT ALL PRIVILEGES ON dolphinscheduler.* TO '{dolphinscheduler}'@'%';
+mysql> CREATE USER '{user}'@'localhost' IDENTIFIED BY '{dolphinscheduler}';
+mysql> GRANT ALL PRIVILEGES ON dolphinscheduler.* TO '{dolphinscheduler}'@'localhost';
+mysql> FLUSH PRIVILEGES;
+
+
+# for mysql
+export DATABASE=${DATABASE:-mysql}
+export SPRING_PROFILES_ACTIVE=${DATABASE}
+export SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:3306/dolphinscheduler?useUnicode=true&characterEncoding=UTF-8&useSSL=false"
+export SPRING_DATASOURCE_USERNAME={dolphinscheduler}
+export SPRING_DATASOURCE_PASSWORD={dolphinscheduler}
+
+
+
+# ---------------------------------------------------------
+# INSTALL MACHINE
+# ---------------------------------------------------------
+# Due to the master, worker, and API server being deployed on a single node, the IP of the server is the machine IP or localhost
+ips="localhost"
+sshPort="22"
+masters="localhost"
+workers="localhost:default"
+alertServer="localhost"
+apiServers="localhost"
+
+# DolphinScheduler installation path, it will auto-create if not exists
+installPath=~/dolphinscheduler
+
+# Deploy user, use the user you create in section **Configure machine SSH password-free login**
+deployUser="dolphinscheduler"
+修改dolphinscheduler_env.sh文件
+文件./bin/env/dolphinscheduler_env.sh描述了下列配置：
+
+DolphinScheduler 的数据库配置，详细配置方法见初始化数据库
+一些事务类外部依依路径或库文件，以及JAVA_HOME都SPARK_HOME在这里定义的
+注册中心zookeeper
+服务端相关配置，比存储，时区设置等
+如果您不使用某种任务类型，您可以忽略任务外部依赖项，但您必须根据您的环境更改JAVA_HOME、注册中心和数据库相关关配置。
+
+# JAVA_HOME, will use it to start DolphinScheduler server
+export JAVA_HOME=${JAVA_HOME:-/opt/soft/java}
+
+# Database related configuration, set database type, username and password
+export DATABASE=${DATABASE:-postgresql}
+export SPRING_PROFILES_ACTIVE=${DATABASE}
+export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5432/dolphinscheduler"
+export SPRING_DATASOURCE_USERNAME={user}
+export SPRING_DATASOURCE_PASSWORD={password}
+
+# DolphinScheduler server related configuration
+export SPRING_CACHE_TYPE=${SPRING_CACHE_TYPE:-none}
+export SPRING_JACKSON_TIME_ZONE=${SPRING_JACKSON_TIME_ZONE:-UTC}
+export MASTER_FETCH_COMMAND_NUM=${MASTER_FETCH_COMMAND_NUM:-10}
+
+# Registry center configuration, determines the type and link of the registry center
+export REGISTRY_TYPE=${REGISTRY_TYPE:-zookeeper}
+export REGISTRY_ZOOKEEPER_CONNECT_STRING=${REGISTRY_ZOOKEEPER_CONNECT_STRING:-localhost:2181}
+
+# Tasks related configurations, need to change the configuration if you use the related tasks.
+export HADOOP_HOME=${HADOOP_HOME:-/opt/soft/hadoop}
+export HADOOP_CONF_DIR=${HADOOP_CONF_DIR:-/opt/soft/hadoop/etc/hadoop}
+export SPARK_HOME1=${SPARK_HOME1:-/opt/soft/spark1}
+export SPARK_HOME2=${SPARK_HOME2:-/opt/soft/spark2}
+export PYTHON_HOME=${PYTHON_HOME:-/opt/soft/python}
+export HIVE_HOME=${HIVE_HOME:-/opt/soft/hive}
+export FLINK_HOME=${FLINK_HOME:-/opt/soft/flink}
+export DATAX_HOME=${DATAX_HOME:-/opt/soft/datax}
+
+export PATH=$HADOOP_HOME/bin:$SPARK_HOME1/bin:$SPARK_HOME2/bin:$PYTHON_HOME/bin:$JAVA_HOME/bin:$HIVE_HOME/bin:$FLINK_HOME/bin:$DATAX_HOME/bin:$PATH
+初期化数据库
+请参考数据 伪分布式/分布式安装初始化数据库源配置创建并初始化数据库
+
+启动 DolphinScheduler
+使用上面创建的部分用户运行以下指令完成部分，部分后的运行日志将存放在日志文件夹内
+
+bash ./bin/install.sh
+注意:第一次部属的话，可能出现5次sh: bin/dolphinscheduler-daemon.sh: No such file or directory相关信息，此为非重要信息直接忽略即可
+
+登录 DolphinScheduler
+浏览器访问地址 http://localhost:12345/dolphinscheduler/ui 即可登录系统UI。默认的用户名和密码是admin/dolphinscheduler123
+
+启停服务
+# 一键停止集群所有服务
+bash ./bin/stop-all.sh
+
+# 一键开启集群所有服务
+bash ./bin/start-all.sh
+
+# 启停 Master
+bash ./bin/dolphinscheduler-daemon.sh stop master-server
+bash ./bin/dolphinscheduler-daemon.sh start master-server
+
+# 启停 Worker
+bash ./bin/dolphinscheduler-daemon.sh start worker-server
+bash ./bin/dolphinscheduler-daemon.sh stop worker-server
+
+# 启停 Api
+bash ./bin/dolphinscheduler-daemon.sh start api-server
+bash ./bin/dolphinscheduler-daemon.sh stop api-server
+
+# 启停 Alert
+bash ./bin/dolphinscheduler-daemon.sh start alert-server
+bash ./bin/dolphinscheduler-daemon.sh stop alert-server
+注意1: : 每个服务在路途<service>/conf/dolphinscheduler_env.sh中都有dolphinscheduler_env.sh文件，这可以作为微服务需要提供便利。意味着你可以基于不同的环境变化来启动各服务，只需要在对应服务中配置然后通过命令<service>/conf/dolphinscheduler_env.sh启动<service>/bin/start.sh 即可可。但如果您使用命令/bin/dolphinscheduler-daemon.sh start <service>启动服务，它将使用文件bin/env/dolphinscheduler_env.sh 覆盖<service>/conf/dolphinscheduler_env.sh然后启动服务，目的是为了减少用户修改配置的成本。
+
+注意2:：服务使用请实体参看《系统架构设计》小节。Python网关服务默认与api-server一起启动，如果您不想启动Python网关服务请通通过更改 api-server 配置文件中的来禁止使用api-server/conf/application.yaml它python-gateway.enabled : false。
+
+
+
+
+
+
+
+mysql -uroot -p
+
+mysql> CREATE DATABASE dolphinscheduler DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+
+# 修改 {user} 和 {password} 为你希望的用户名和密码
+CREATE USER 'dolphinscheduler'@'%' IDENTIFIED BY 'gaosen';
+GRANT ALL PRIVILEGES ON dolphinscheduler.* TO 'dolphinscheduler'@'%';
+CREATE USER 'dolphinscheduler'@'localhost' IDENTIFIED BY 'gaosen';
+GRANT ALL PRIVILEGES ON dolphinscheduler.* TO 'dolphinscheduler'@'localhost';
+FLUSH PRIVILEGES;
+
+
+
+
+# JAVA_HOME, will use it to start DolphinScheduler server
+export JAVA_HOME=${JAVA_HOME:-/opt/soft/java}
+ 
+# Database related configuration, set database type, username and password
+ 
+export DATABASE=${DATABASE:-mysql}
+export SPRING_PROFILES_ACTIVE=${DATABASE}
+export SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+export SPRING_DATASOURCE_URL="jdbc:mysql://ip:3306/dolphinscheduler?useUnicode=true&characterEncoding=UTF-8&useSSL=false"
+export SPRING_DATASOURCE_USERNAME=dolphinscheduler
+export SPRING_DATASOURCE_PASSWORD=dolphinscheduler
+ 
+# DolphinScheduler server related configuration
+export SPRING_CACHE_TYPE=${SPRING_CACHE_TYPE:-none}
+export SPRING_JACKSON_TIME_ZONE=${SPRING_JACKSON_TIME_ZONE:-Asia/Shanghai}
+export MASTER_FETCH_COMMAND_NUM=${MASTER_FETCH_COMMAND_NUM:-10}
+ 
+ 
+# Registry center configuration, determines the type and link of the registry center
+export REGISTRY_TYPE=${REGISTRY_TYPE:-zookeeper}
+export REGISTRY_ZOOKEEPER_CONNECT_STRING=${REGISTRY_ZOOKEEPER_CONNECT_STRING:-localhost:2181}
+ 
+# Tasks related configurations, need to change the configuration if you use the related tasks.
+export HADOOP_HOME=${HADOOP_HOME:-/opt/soft/hadoop}
+export HADOOP_CONF_DIR=${HADOOP_CONF_DIR:-/opt/soft/hadoop/etc/hadoop}
+export SPARK_HOME1=${SPARK_HOME1:-/opt/soft/spark1}
+export SPARK_HOME2=${SPARK_HOME2:-/opt/soft/spark2}
+export PYTHON_HOME=${PYTHON_HOME:-/usr/bin/python}
+export HIVE_HOME=${HIVE_HOME:-/opt/soft/hive}
+export FLINK_HOME=${FLINK_HOME:-/opt/soft/flink}
+export DATAX_HOME=${DATAX_HOME:-/opt/soft/datax}
+
+
+
+
+
+
+
+
+配置资源中心
+配置HDFS存储文件
+在 3.0.0-alpha 版本之后，如果需要使用到资源中心的 HDFS 或 S3 上传资源，我们需要对以下路径的进行配置：api-server/conf/common.properties 和 worker-server/conf/common.properties。可参考如下：
+
+登录后复制 
+# 用户数据本地目录路径，请确保该目录存在并且具有读写权限
+data.basedir.path=/tmp/dolphinscheduler
+# 资源存储类型：HDFS、S3、OSS、NONE
+resource.storage.type=HDFS
+# 资源存储在HDFS/S3路径上，资源文件将存储到此基本路径，自行配置，请确保该目录存在于HDFS上并具有读写权限。建议使用“/dolphinscheduler”
+resource.storage.upload.base.path=/dolphinscheduler
+
+# 如果resource.storage.type=HDFS，则用户必须具有在HDFS根路径下创建目录的权限
+resource.hdfs.root.user=hdfs
+# 如果启用了resource.storage.type=HDFS和namenode HA，则需要将core-site.xml和HDFS-site.xml复制到conf-dir
+resource.hdfs.fs.defaultFS=hdfs://bigdata-24-194:8020
+
+# resourcemanager port, the default value is 8088 if not specified
+resource.manager.httpaddress.port=8088
+# 如果启用了resourcemanager HA，请设置HA IP；如果resourcemanager为single，则将该值保留为空
+yarn.resourcemanager.ha.rm.ids=192.168.xx.xx,192.168.xx.xx
+# 如果resourcemanager HA开启或不使用resourcemanager，请保持默认值； 如果resourcemanager是单一的，只需要将ds1替换为实际的resourcemanager hostname
+yarn.application.status.address=http://ds1:%s/ws/v1/cluster/apps/%s
+# 达到应用程序编号阈值时的作业历史状态url（默认值为10000，可能设置为1000）
+# ds1 取 yarn-site.xml 中 yarn.log.server.url配置的ip
+yarn.job.history.status.address=http://ds1:19888/ws/v1/history/mapreduce/jobs/%s
+-----------------------------------
+©著作权归作者所有：来自51CTO博客作者jast_zsh的原创作品，请联系作者获取转载授权，否则将追究法律责任
+01.DolphinScheduler集群搭建
+https://blog.51cto.com/u_13721902/6250221
+
+
+
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+
+import java.io.IOException;
+
+public class HdfsTest {
+    public static void main(String[] args) {
+        Configuration conf = new Configuration();
+        conf.set("fs.defaultFS", "hdfs://<远程HDFS地址>");
+
+        try {
+            FileSystem fs = FileSystem.get(conf);
+            Path path = new Path("/");
+            boolean exists = fs.exists(path);
+            
+            if (exists) {
+                System.out.println("Successfully accessed HDFS!");
+            } else {
+                System.out.println("Failed to access HDFS.");
+            }
+            
+            fs.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+
+
+CREATE TABLE ctlt13_like (LIKE ctlt3 INCLUDING CONSTRAINTS INCLUDING COMMENTS INCLUDING STORAGE) INHERITS (ctlt1);
+  
+  

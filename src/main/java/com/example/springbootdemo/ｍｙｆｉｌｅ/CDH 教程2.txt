@@ -1,0 +1,369 @@
+
+
+CDH 教程2
+
+# 三台主机安装 vim 编辑器 
+[root@node01 ~]# yum install -y vim
+# 关闭三台主机的防火墙
+[root@node01 ~]# systemctl stop firewalld
+[root@node01 ~]# systemctl disable firewalld
+# 关闭三台主机的子安全系统
+[root@node01 ~]# vim /etc/selinux/config
+SELINUX=disabled
+
+# 修改主机名
+[root@node02 ~]# hostnamectl set-hostname node02
+[root@node03 ~]# hostnamectl set-hostname node03
+
+# 修改主机映射
+[root@node01 ~]# vim /etc/hosts
+192.168.22.131 node01
+192.168.22.132 node02
+192.168.22.133 node03
+
+# 免密登录
+[root@node01 ~al]# ssh-keygen
+[root@node01 ~]# ssh-copy-id node01
+[root@node01 ~]# ssh-copy-id node02
+[root@node01 ~]# ssh-copy-id node03
+
+# 重启系统
+[root@node01 ~]# reboot
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+更换国内aliyun镜像yum源，三台机器安装第三方依赖包
+[root@node01 ~]# yum install -y wget
+[root@node01 ~]# wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+[root@node01 ~]# yum clean all
+[root@node01 ~]# yum makecache
+
+[root@node01 ~]# yum -y install python bind-utils psmisc sqlite cyrus-sasl-plain cyrus-sasl-gssapi portmap redhat-lsb
+1
+2
+3
+4
+5
+6
+安装httpd 服务作为 CM 的 yum 源
+[root@node01 ~]# yum install -y httpd createrepo
+[root@node01 ~]# systemctl start httpd
+[root@node01 ~]# systemctl enable httpd
+[root@node01 ~]# cd /var/www/html/
+# 创建一个与 cloudera manager 官网一直的目录结构，构建离线 yum 源
+[root@node01 html]# mkdir -p cm6/6.2.1/redhat7/yum/RPMS/x86_64/
+# 上传 cm2.6.1 中的文件到 /var/www/html/cm6/6.2.1/redhat7/yum/RPMS/x86_64 目录 
+# 上传 allkeys.asc 到 /var/www/html/cm6/6.2.1 目录中
+# 生成 repodata 目录
+[root@node01 ~]# cd /var/www/html/cm6/6.2.1/redhat7/yum
+[root@node01 ~]# createrepo .
+# 配置本地yum源
+[root@node01 ~]# cd /etc/yum.repos.d
+[root@node01 yum.repos.d]# vim cloudera-manager.repo
+[cloudera-manager]
+name=Cloudera Manager
+baseurl=http://node01/cm6/6.2.1/redhat7/yum
+gpgcheck=0
+enabled=1
+[root@node01 yum.repos.d]# yum clean all
+[root@node01 yum.repos.d]# yum list | grep cloudera
+cloudera-manager-agent.x86_64               6.2.1-1426065.el7          cloudera-manager
+cloudera-manager-daemons.x86_64             6.2.1-1426065.el7          cloudera-manager
+cloudera-manager-server.x86_64              6.2.1-1426065.el7          cloudera-manager
+cloudera-manager-server-db-2.x86_64         6.2.1-1426065.el7          cloudera-manager
+enterprise-debuginfo.x86_64                 6.2.1-1426065.el7          cloudera-manager
+oracle-j2sdk1.8.x86_64                      1.8.0+update181-1          cloudera-manager
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+创建 cloudera-scm用户(centos7系统必须使用这个用户)
+# 创建 cloudera-scm 用户及密码设定
+[root@node01 yum.repos.d]# useradd cloudera-scm
+[root@node01 yum.repos.d]# passwd cloudera-scm
+更改用户 cloudera-scm 的密码 。
+新的 密码： cloudera-scm
+# 配置当前用户免密钥登陆
+[root@node01 yum.repos.d]# echo "cloudera-scm ALL=(root)NOPASSWD:ALL" >> /etc/sudoers
+[root@node01 yum.repos.d]# su cloudera-scm
+[cloudera-scm@node01 ~]$ exit
+登出
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+安装MySQL
+# 上传MySQL离线捆绑包到Linux 系统 /usr/local/mysql57 目录下,并解压到当前目录
+$ [root@node03 mysql57]# tar -xvf mysql-5.7.31-1.el7.x86_64.rpm-bundle.tar
+# 安装mysql相关服务
+[root@node03 mysql57]# yum localinstall -y install mysql-community-{server,client,common,libs}-*
+
+# 手动初始化data文件夹，服务密码为空字符串
+$ [root@node01 mysql5.7]# mysqld --user=mysql --initialize-insecure
+# 启动 MySQL 服务
+$ [root@node01 mysql5.7]# systemctl start mysqld
+$ [root@node01 mysql5.7]# systemctl status mysqld
+# 设置 MySQL 服务开机启动
+$ [root@node01 mysql5.7]# systemctl enable mysqld
+# 登录 MySQL 密码是空字符串，直接回车即可
+$ [root@node01 mysql5.7]# mysql -uroot -p
+# 修改密码
+mysql> ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+# 创建CM元数据库库
+mysql> create database scm DEFAULT CHARACTER SET utf8;
+# 设置远程访问
+grant all privileges on *.* to 'root'@'%' identified by 'root' with grant option;
+grant all privileges on *.* to 'root'@'%' identified by 'root' with grant option;
+grant all privileges on *.* to 'root'@'localhost' identified by 'root' with grant option;
+grant all privileges on *.* to 'root'@'node01' identified by 'root' with grant option;
+flush privileges;
+mysql> exit
+Bye
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+安装Server服务
+安装 CM Server
+$ [root@node01 ~]# yum install -y oracle-j2sdk1.8.x86_64 
+$ [root@node01 ~]# yum install -y enterprise-debuginfo.x86_64
+$ [root@node01 ~]# yum install -y cloudera-manager-daemons.x86_64 
+$ [root@node01 ~]# yum install -y cloudera-manager-server.x86_64 
+$ [root@node01 ~]# yum install -y cloudera-manager-server-db-2.x86_64
+1
+2
+3
+4
+5
+如果之前没有没有在 yum 源中添加对应的包，后面新增了，则需要删除之前的 repodata 文件，重新生成，重启 httpd 服务，清除 yum 缓存 yum clean all 。
+
+设置 CM 元数据库
+# 上传mysql驱动包到 /opt/cloudera/cm/lib 下
+# 使用 /opt/cloudera/cm/schema/scm_prepare_database.sh 脚本 初始化元数据库关联scm
+[root@node01 schema]# ./scm_prepare_database.sh -h localhost mysql scm root root
+# 查看初始化情况
+[root@node01 schema]# cat /etc/cloudera-scm-server/db.properties
+com.cloudera.cmf.db.type=mysql
+com.cloudera.cmf.db.host=localhost
+com.cloudera.cmf.db.name=scm
+com.cloudera.cmf.db.user=root
+com.cloudera.cmf.db.setupType=EXTERNAL
+com.cloudera.cmf.db.password=root
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+配置本地 parcel 包
+方式一：
+把之前下载的 CDH 相关 parcel 包上传到 /opt/cloudera/parcel-repo 目录下，并重命名密钥文件为 CDH-6.2.1-1.cdh6.2.1.p0.1425774-el7.parcel.sha 去除最后一个1，否则CM会认为当前 parcel 不是一个完整的包，会重新下载。
+
+方式二：
+除此之外还可以配置HTTP 内部访问地址，用于远程访问。在 /var/www/html 中创建一个 cdh_repo 文件夹，把 CDH 相关 jar 包放到这个目录即可。
+
+[root@node01 html]# cd /var/www/html/cdh_repo/
+[root@node01 cdh_repo]# ll
+总用量 2044312
+-rw-r--r--. 1 root root 2093332003 12月 18 14:36 CDH-6.2.1-1.cdh6.2.1.p0.1425774-el7.parcel
+-rw-r--r--. 1 root root         40 12月 18 14:36 CDH-6.2.1-1.cdh6.2.1.p0.1425774-el7.parcel.sha
+-rw-r--r--. 1 root root      33875 12月 18 14:36 manifest.json
+1
+2
+3
+4
+5
+6
+
+
+当然也可以两种多配置，使用 ln -s 去引用地址，不会占用太多空间。
+
+启动server服务进程(7180端口)
+[root@node01 cloudera]# systemctl start cloudera-scm-server
+Failed to start cloudera-scm-server.service: Unit not found.   # 内存或硬盘资源不够
+# 查看启动日志
+[root@node01 cloudera]# tail -f /var/log/cloudera-scm-server/cloudera-scm-server.log
+2020-12-18 13:08:39,801 INFO WebServerImpl:org.eclipse.jetty.server.AbstractConnector: Started ServerConnector@7e91332{HTTP/1.1,[http/1.1]}{0.0.0.0:7180}
+2020-12-18 13:08:39,802 INFO WebServerImpl:org.eclipse.jetty.server.Server: Started @173152ms
+2020-12-18 13:08:39,802 INFO WebServerImpl:com.cloudera.server.cmf.WebServerImpl: Started Jetty server.
+# 查看服务进程,这里差不多要等待1分钟左右，CM需要安装加载许多服务才能启动
+netstat -an | grep 7180
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+
+使用CM搭建集群
+访问Server：http://node01:7180 ，账号和密码都是 admin
+
+登录页面
+
+
+输入用户名和密码登录，进入欢迎页面，勾选我同意，选择免费使用，如下所示：
+
+
+实例化ClouderaManager创建集群
+
+
+输入主机名称，搜索，如果有**多个节点可以一次性都选择上，**我这里资源有限就用一台演示：
+
+指定Cloudera 存储库与 CDH parcel 配置，这里CDH是前面配置好的，否则系统在线下载比较慢，一定要注意 http://node01/cm6/6.2.1/。
+
+
+
+
+
+
+检查 cloudera-scm 免密配置成功没有，返回上一步，确定 root 用户的 密码输入正常没有，重新输入一次。
+
+
+
+
+
+设置 swappiness 和 透明化
+
+echo "vm.swappiness=10" >> /etc/sysctl.conf   // sysctl -w vm.swappiness=10
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+1
+2
+3
+
+
+
+
+
+
+
+控制台查看HDFS安装情况
+
+
+到此集群就安装完毕了，接下来我们就可以在集群上安装所需要的服务，可以在自定义选项中选择所需安装的服务，这里我们就先不安装，点击 CloueraManager Logo 回到主页。
+
+CM 安装 YARN
+
+
+
+
+
+
+CM安装Hive
+在要安装Hive的主机 /opt/cloudera/parcels/CDH-6.2.1-1.cdh6.2.1.p0.1425774/lib/hive/lib 目录下添加 mysql 驱动，并在 mysql 数据库中创建一个 hive 数据库。
+
+
+
+
+
+
+CM创建HBase
+需要先安装Zookeeper，在安装HBase
+
+
+
+
+
+扩展集群主机
+先开启 node02 主机，接着回到 Cloudera Manager 主界面，添加 --> 添加主机
+
+
+
+
+
+
+新的主机需要安装 JDK，如果之前安装过了，这里就不用再安装了
+
+
+
+跳过正确性检测，不选择主机模板
+
+
+
+————————————————
+版权声明：本文为CSDN博主「CDHong.it」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/u010158540/article/details/116999489

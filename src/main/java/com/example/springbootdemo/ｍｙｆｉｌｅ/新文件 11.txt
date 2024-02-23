@@ -1,0 +1,47 @@
+用C4D做一个方的矿泉水瓶模型
+
+To create a mineral water bottle model in C4D, you can follow these general steps:
+
+Create a cube object by going to "Objects" > "Primitive" > "Cube".
+Adjust the size of the cube to match the dimensions of the bottle you want to create.
+Use the "Loop Cut" tool to add additional edges to the cube where the bottle's curves will be.
+Use the "Scale" tool to adjust the position of the edges to create the desired shape.
+Use the "Extrude" tool to create the neck and cap of the bottle.
+Add materials and textures to the model to give it a realistic appearance.
+Here is an example of how you can use the "Loop Cut" tool to add edges to the cube:
+
+path/to/file.c4d
+// Select the cube object
+// Go to "Edge" mode
+// Select the edge where you want to add a loop cut
+// Go to "Mesh" > "Loop Cut"
+// Adjust the position of the loop cut using the "Scale" tool
+
+
+And here is an example of how you can use the "Extrude" tool to create the neck and cap of the bottle:
+
+path/to/file.c4d
+// Select the top face of the cube
+// Go to "Extrude Inner"
+// Adjust the position of the extruded face to create the neck of the bottle
+// Select the new top face of the neck
+// Go to "Extrude"
+// Adjust the position of the extruded face to create the cap of the bottle
+
+
+I hope this helps you create the mineral water bottle model you need! Let me know if you have any further questions.
+
+
+上边的瓶子如何增加指定形状内凹
+
+To create an indentation on the top of the bottle, you can use the "Extrude Inner" tool. Here's an example of how to do it:
+
+path/to/file.c4d
+// Select the top face of the bottle
+// Go to "Extrude Inner"
+// Adjust the position of the extruded face to create the indentation
+
+
+By selecting the top face of the bottle and using the "Extrude Inner" tool, you can create an indentation that is inset from the top surface of the bottle. Adjust the position of the extruded face to create the desired shape and depth of the indentation.
+
+I hope this helps! Let me know if you have any further questions.

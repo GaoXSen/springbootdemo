@@ -1,0 +1,496 @@
+cdh集群搭建
+ 大数据 / 大数据环境
+
+ 被 manqiang.tang（唐满强） 创建于 2024/01/25 09:44:30 ， 被 sen.gao（高森） 最后更新于 2024/02/04 10:06:38  查看修改历史   查看附件
+
+展开目录
+hadoop集群安装记录
+三、环境配置
+1.修改hostname（所有节点）—- 完成
+hostnamectl set-hostname cdh01
+其他节点：
+hostnamectl set-hostname cdh02
+hostnamectl set-hostname cdh03
+hostnamectl set-hostname cdh04
+hostnamectl set-hostname cdh05
+hostnamectl set-hostname cdh06
+hostnamectl set-hostname cdh07
+hostnamectl set-hostname cdh08
+
+2.配置节点的IP-主机名映射信息（所有节点）—- 完成
+vi /etc/hosts
+
+— 外部网络，CDH节点间需要开启通配符，就是把ip替换为0.0.0.0。
+192.168.76.61 cdh01
+192.168.76.62 cdh02
+192.168.76.63 cdh03
+192.168.76.64 cdh04
+192.168.76.68 cdh08
+
+— 内部网络，CDH各个节点可以直接通信。
+172.16.76.61 cdh01
+172.16.76.62 cdh02
+172.16.76.63 cdh03
+172.16.76.64 cdh04
+172.16.76.65 cdh05
+172.16.76.66 cdh06
+172.16.76.67 cdh07
+172.16.76.68 cdh08
+
+批量分发hosts文件
+for i in cdh02 cdh03 cdh04 cdh05 cdh06 cdh07 cdh08; do scp /etc/hosts $i:/etc/; down
+
+3.关闭防火墙（所有节点）目前好像本来就未开启—- 完成
+yum install -y firewalld
+systemctl start firewalld.service
+systemctl stop firewalld
+systemctl disable firewalld
+systemctl status firewalld
+
+4.关闭SeLinux（所有节点）—- 完成
+执行getenforce指令查看selinux状态，如果输出为：enforcing，则需要处理一下，否则可以跳过这一步。
+修改/etc/selinux/config文件（在某些系统中，可能是/etc/sysconfig/selinux文件），将SELINUX=enforcing修改为SELINUX=disabled
+更新配置之后要重启服务器生效，或者执行：
+setenforce 0
+，使其立即生效。
+注意：也可以使用sed -i s/SELINUX=enforcing/SELINUX=disabled/g /etc/selinux/config (此方法操作)
+
+5.配置免密登录（所有节点）—- 完成
+生成ssh key：
+ssh-keygen -t rsa （每个节点执行）
+cdh01上操作互信配置：
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh02
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh03
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh04
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh08
+
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh05
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh06
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh07
+cdh02、cdh03、cdh08上同上面操作类似，完成互信配置。
+
+6.设置swap空间、关闭大页面压缩（所有节点）——性能考虑(先不操作,不操作会警告)
+1.swap空间设置
+swappiness=0：表示最大限度使用物理內存，之后才是swap空间；
+swappiness=100：表示积极使用swap分区，並且把內存上的数据及时转移到swap空间；
+如果是混合服务器，不建议完全禁用swap，可以尝试降低swappiness。
+
+7.NTP服务安装和设置 （时钟同步服务）02,03,04,08时间指向01的ntp—- 完成
+Hadoop对集群中各个机器的时间同步要求比较高，要求各个机器的系统时间不能相差太多，不然会造成很多问题。
+可以配置集群中各个机器和互联网的时间服务器进行时间同步，但是在实际生产环境中，集群中大部分服务器是不能连接外网的，
+这时候可以在内网搭建一个自己的时间服务器（NTP服务器），集群的各个机器与这个时间服务器进行时间同步。
+我们选择其中一个节点cdh01机器作为NTP服务器，其他机器和它自动同步。
+安装NTP（所有节点）
+yum -y install ntp
+
+Manager节点：
+设置指向NTP服务器，如果局域网内有时间服务器，可以指向时间服务器（manager节点-cdh01）
+vi /etc/ntp.conf
+注释掉之前的server，然后添加以下NTP服务器
+server http://ntp.aliyun.com
+
+其他节点：
+vi /etc/ntp.conf
+集群的其他节点指向第一个（cdh02、cdh03、cdh08）
+server cdh01
+重新启动 ntp 服务和设置开机自启（所有节点）：
+service ntpd restart
+systemctl enable ntpd.service
+
+查看和测试：
+ntpdc -c loopinfo #查看与时间同步服务器的时间偏差 02,03,04,08和01无时间偏差
+ntpq -p #查看当前同步的时间服务器
+ntpstat #查看状态定时同步crontab
+crontab -e #可以不用设置
+10 /usr/sbin/ntpdate centos1
+
+——- ntp服务问题，服务status正常，时间未同步
+
+离线 设置cdh01服务为本机
+server 127.127.1.0
+fudge 127.127.1.0 stratum 10
+公司内网ntp地址
+server 192.168.72.21
+fudge 192.168.72.21 stratum 10
+
+其它几点，停服务，手动同步cdh01时间，起服务
+systemctl stop ntpd
+ntpdate -u cdh01
+systemctl start ntpd
+ntpq -p
+systemctl stop ntpd
+ntpdate -u 127.127.1.0
+systemctl start ntpd
+
+四、配置和安装CDH
+1.配置CM源
+注意：操作系统可以先配置本地yum。CDH的安装包都是rpm包。如果使用rpm安装方式安装起来是比较复杂的，会有很多依赖问题需要解决，就需要使用yum帮助我们解决依赖问题。（也可以是在线的阿里yum源，之前在按照好操作系统之后已经设置了aliyun的yum，所有这里省略centos yum源）
+
+配置CM源：
+在cdh01节点上安装并启动httpd
+
+安装
+yum install httpd
+
+启动
+service httpd start
+
+开机自启
+systemctl enable httpd
+或者chkconfig httpd on
+
+允许http_port_t使用6789端口 先用80，不要动端口 （配置为内网后可以如此操作）
+semanage port -l | grep http
+semanage port -a -t http_port_t -p tcp 6789
+semanage port -a -t http_port_t -p tcp 2181
+
+将端口号修改为：6789 (可选项操作，默认是80，这里使用默认的端口)
+$ vi /etc/httpd/conf/httpd.conf
+增加/修改端口号如下：
+Listen 6789
+
+mkdir /var/www/html/cm6
+mkdir /var/www/html/cdh6
+将cdh的安装包和cm的包拷贝到创建的目录
+拷贝cm安装包和jdk到cm6
+cp cloudera-manager-* /var/www/html/cm6/
+cp enterprise-debuginfo-6.3.1-1466458.el7.x86_64.rpm /var/www/html/cm6
+cp oracle-j2sdk1.8-1.8.0+update181-1.x86_64.rpm /var/www/html/cm6
+拷贝cdh安装包和元数据文件
+cp CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel /var/www/html/cdh6/
+cp manifest.json /var/www/html/cdh6/
+
+安装createrepo命令，然后进入到cm6目录创建yum源
+yum install -y createrepo #下载createrepo
+cd /var/www/html/cm6 #命令进入到cm6安装包的httpd资源位置
+createrepo . #创建yum源的描述meta
+
+mkdir -p /var/www/html/cm6/cm6.3.1/RPMS/x86_64
+
+上传 cm2.6.1 中的文件到 /var/www/html/cm6/cm6.3.1/RPMS/x86_64 目录
+tar -zxf cm6.3.1-redhat7.tar.gz
+cp -rf /downloads/CDH6.3.2/cm6.3.1/RPMS/* /var/www/html/cm6/cm6.3.1/RPMS
+上传 allkeys.asc 到 /var/www/html/cm6/cm6.3.1目录中
+生成 repodata 目录
+[root@node01 ~]# cd /var/www/html/cm6/cm6.3.1/
+[root@node01 ~]# createrepo .
+配置本地yum源
+
+yum clean all
+yum list | grep cloudera
+
+配置yum源（每个节点）
+
+cat >> /etc/yum.repos.d/cloudera-manager.repo << EOF
+[cloudera-manager]
+name=cm
+baseurl=http://cdh01/cm6/cm6.3.1
+gpgcheck=0
+EOF
+
+查看yum配置源是否生效
+yum clean all
+yum repolist
+yum list | grep cloudera
+
+2.安装
+安装依赖（所有节点）
+yum install -y bind-utils libxslt cyrus-sasl-plain cyrus-sasl-gssapi portmap fuse-libs /lib/lsb/init-functions httpd mod_ssl openssl-devel python-psycopg2 Mysql-python fuse
+
+安装cloudera-manager和agent（cdh01）
+
+安装JDK
+yum install -y oracle-j2sdk1.8.x86_64
+
+安装cloudera-manager
+yum install -y cloudera-manager-agent cloudera-manager-daemons cloudera-manager-server cloudera-manager-server-db-2 postgresq-server
+
+安装Mariadb（cdh01）
+安装
+yum install -y mariadb-server
+启动和开机自启
+systemctl start mariadb && systemctl enable mariadb
+配置Mariadb数据库 — 版本问题，卸载并放弃。查看需要10.1版本。按此方法安装的是10.5
+mysql_secure_installation #可以在遇[Y/n]输入y设置密码 [账号/密码：root/shdata]
+安装MySQL
+上传MySQL离线捆绑包到Linux 系统 /usr/local/mysql57 目录下,并解压到当前目录
+$ [root@node03 mysql57]# tar -xvf mysql-5.7.31-1.el7.x86_64.rpm-bundle.tar
+安装mysql相关服务
+[root@node03 mysql57]# yum localinstall -y install mysql-community-{server,client,common,libs}-*
+替换为mysql。
+
+手动初始化data文件夹，服务密码为空字符串
+$ [root@node01 mysql5.7]# mysqld —user=mysql —initialize-insecure
+启动 MySQL 服务
+$ [root@node01 mysql5.7]# systemctl start mysqld
+$ [root@node01 mysql5.7]# systemctl status mysqld
+设置 MySQL 服务开机启动
+$ [root@node01 mysql5.7]# systemctl enable mysqld
+登录 MySQL 密码是空字符串，直接回车即可
+$ [root@node01 mysql5.7]# mysql -uroot -p
+修改密码
+mysql> ALTER USER ‘root’@’localhost’ IDENTIFIED BY ‘root’;
+创建CM元数据库库
+mysql> create database scm DEFAULT CHARACTER SET utf8;
+设置远程访问
+grant all privileges on . to ‘root’@’%’ identified by ‘root’ with grant option;
+grant all privileges on . to ‘root’@’cdh01’ identified by ‘root’ with grant option;
+grant all privileges on . to ‘root’@’cdh02’ identified by ‘root’ with grant option;
+grant all privileges on . to ‘root’@’cdh03’ identified by ‘root’ with grant option;
+set password for ‘root’@’cdh01’=password(‘root’);
+set password for ‘root’@’cdh02’=password(‘root’);
+set password for ‘root’@’cdh03’=password(‘root’);
+set password for ‘root’@’cdh04’=password(‘root’);
+set password for ‘root’@’cdh08’=password(‘root’);
+flush privileges;
+mysql> exit
+初始化管理节点数据库(cdh01)
+mkdir -p /usr/share/java
+———— ** CDH对mysl名字有要求，需要重命名
+cd /usr/share/java
+mv mysql-connector-java-5.1.34-bin.jar mysql-connector-java.jar
+（这里需要分发到所有节点）
+执行数据库初始脚本
+/opt/cloudera/cm/schema/scm_prepare_database.sh mysql -h192.168.76.64 -uroot -proot —scm-host 192.168.76.61 scm root root
+/opt/cloudera/cm/schema/scm_prepare_database.sh -h cdh01 mysql scm root root
+注意：初始化完成之后，登录的root账号的密码变成了root，可以根据scm_prepare_database.sh脚本分析出来
+
+安装其他的agent节点（cdh02、cdh03、cdh08）
+
+安装
+yum install -y oracle-j2sdk1.8.x86_64
+安装agent
+yum install cloudera-manager-daemons cloudera-manager-agent -y
+修改配置文件(所有节点)
+修改Cloudera Agent配置文件/etc/cloudera-scm-agent/config.ini，配置server_host为主节点cdh01
+
+通过vi命令修改
+vi /etc/cloudera-scm-agent/config.ini
+server_host=cdh01
+也可以通过sed命令修改（推荐）
+sed -i “s/server_host=localhost/server_host=cdh01/g” /etc/cloudera-scm-agent/config.ini
+配置JAVA_HOME(所有节点)
+vi /etc/profile
+
+add for JAVA_HOME
+export JAVA_HOME=/usr/java/jdk1.8.0_181-cloudera/
+export PATH=$PATH:$JAVA_HOME/bin
+source /etc/profile
+启动CDH
+1.启动Cloudera Manager(cdh01)
+
+启动
+systemctl start cloudera-scm-server
+设置开机自启？？？
+systemctl enable cloudera-scm-server
+
+查看启动日志
+[root@node01 cloudera]# tail -f /var/log/cloudera-scm-server/cloudera-scm-server.log
+
+2.启动Cloudera Agent（所有节点）
+
+启动
+systemctl start cloudera-scm-agent
+开机自启
+systemctl enable cloudera-scm-agent
+可以访问http://192.168.100.10:7180 进行组件服务的安装操作了
+用户名/密码: admin/admin
+
+五、Web页面安装配置
+大部分按照常规的设置即可。
+以下是特别的地方做下记录。
+
+1.集群名字
+Cluster_dev
+
+3.角色
+按照事先规划的角色分布图来设置
+
+4.数据库配置（cdh01节点）
+mysql -uroot -proot
+
+create database hive default charset utf8;
+— create user ‘hive’@’%’ identified by ‘123456’;
+— grant all on hive. TO ‘hive’@’localhost’ identified by ‘123456’;
+grant all on hive. TO ‘hive’@’%’ identified by ‘123456’;
+flush privileges;
+
+create database oozie default charset utf8;
+grant all on oozie.* TO ‘oozie’@’%’ identified by ‘123456’;
+flush privileges;
+
+create database hue default charset utf8;
+grant all on hue.* TO ‘hue’@’%’ identified by ‘123456’;
+flush privileges;
+
+create database am default charset utf8;
+grant all on am.* TO ‘am’@’%’ identified by ‘123456’;
+flush privileges;
+
+create database reports default charset utf8;
+grant all on reports.* to ‘reports’@’%’ identified by ‘123456’;
+flush privileges;
+
+注意1：如果元数据库的客户端在其他机器上，需要将mysql的驱动jar包放到对应节点上。且在web页面上要选择正确的主机节点，默认都是去找本地的mysql
+
+revoke all privileges on hue.* from ‘am’@’%’;
+
+3.bug 修复尝试
+1. 网络错误，端口报错
+1 monitor报错，尝试替换mysql修复
+ERROR com.cloudera.cmon.firehose.Main: Failed to start Firehose
+
+yum install -y firewalld
+systemctl start firewalld.service
+systemctl disable firewalld
+systemctl status firewalld.service
+systemctl enable firewalld.service
+firewall-cmd —reload
+
+systemctl stop firewalld.service
+systemctl unmask firewalld.service
+Removed symlink /etc/systemd/system/firewalld.service.
+
+semanage port -l | grep http
+semanage port -a -t http_port_t -p tcp 9990
+
+sysctl -w net.ipv4.tcp_fin_timeout=15
+sysctl -w net.ipv4.tcp_timestamps=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+
+2 服务器重启
+systemctl stop cloudera-scm-agent
+
+systemctl start cloudera-scm-agent
+
+systemctl stop cloudera-scm-server
+
+systemctl restart cloudera-scm-agent
+
+systemctl start cloudera-scm-server
+
+3 重装CDH
+4 设置 swappiness 和 透明化
+echo “vm.swappiness=10” >> /etc/sysctl.conf
+// sysctl -w vm.swappiness=10
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+5 配置文件配置通配符,有效，但无法彻底解决
+listeners=PLAINTEXT://0.0.0.0:9000
+advertised.listeners=PLAINTEXT://cdh04:9000
+
+listeners=PLAINTEXT://0.0.0.0:9000
+advertised.listeners=PLAINTEXT://cdh03:9000
+
+listeners=PLAINTEXT://0.0.0.0:9000
+advertised.listeners=PLAINTEXT://cdh08:9000
+
+2. mysql 无法连接
+1. 尝试root开启外部网络访问,可行
+grant all privileges on . to ‘root’@’%’ identified by ‘password’ with grant option;
+flush privileges;
+
+iptables -A INPUT -p tcp —dport 3306 -j ACCEPT
+firewall-cmd —zone=public —add-port=3306/tcp —permanent
+firewall-cmd —reload
+
+grant all privileges on . to ‘root’@’%’ identified by ‘root’ with grant option;
+set password for ‘root’@’192.168.79.150’=password(‘root’);
+flush privileges;
+
+3. CDH文件权限问题
+1. 切换用户，递归配置权限，可行
+切换用户
+export HADOOP_USER_NAME=hdfs
+
+hadoop fs -ls /
+
+hadoop fs -chmod -R 777 /user
+
+sudo -u hdfs hadoop fs -chmod 777 /user
+
+hadoop fs -ls /
+
+以管理员权限运行命令
+sudo -u hdfs hadoop 命令
+
+4. dolphinscheduler配置对象存储，hdfs文件系统
+1. 将对应配置文件修改正确，可行。
+配置 /opt/dolphinscheduler/api-server/conf/common.properties
+
+调整对应配置
+resource.storage.type=HDFS
+resource.storage.upload.base.path=/dolphinscheduler
+resource.hdfs.root.user=hdfs
+resource.hdfs.fs.defaultFS=hdfs://cdh02:8020
+
+5. report解决项目jdbc连接缺少依赖问题
+1. 在jdbc-plugin的pom中添加如下依赖
+    <dependency>
+        <groupId>org.apache.hive</groupId>
+        <artifactId>hive-jdbc</artifactId>
+        <version>2.1.1</version>
+        <exclusions>
+            <exclusion>
+                <groupId>org.eclipse.jetty.aggregate</groupId>
+                <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>jdk.tools</groupId>
+                <artifactId>jdk.tools</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-log4j12</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.apache.hive</groupId>
+                <artifactId>hive-shims</artifactId>
+            </exclusion>
+            <exclusion>
+                <artifactId>jasper-compiler</artifactId>
+                <groupId>tomcat</groupId>
+            </exclusion>
+            <exclusion>
+                <artifactId>jasper-runtime</artifactId>
+                <groupId>tomcat</groupId>
+            </exclusion>
+            <exclusion>
+                <artifactId>servlet-api</artifactId>
+                <groupId>javax.servlet</groupId>
+            </exclusion>
+            <exclusion>
+                <artifactId>log4j-slf4j-impl</artifactId>
+                <groupId>org.apache.logging.log4j</groupId>
+            </exclusion>
+            <exclusion>
+                <artifactId>slf4j-log4j12</artifactId>
+                <groupId>org.slf4j</groupId>
+            </exclusion>
+            <exclusion>
+                <groupId>tomcat</groupId>
+                <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.eclipse.jetty.orbit</groupId>
+                <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>javax.servlet</groupId>
+                <artifactId>servlet-api</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>org.mortbay.jetty</groupId>
+                <artifactId>*</artifactId>
+            </exclusion>
+            <exclusion>
+                <groupId>javax.servlet.jsp</groupId>
+                <artifactId>jsp-api</artifactId>
+            </exclusion>
+        </exclusions>
+    </dependency>

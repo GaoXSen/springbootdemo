@@ -1,0 +1,565 @@
+
+mysql到hive数据类型映射参考如下：
+
+mysql数据类型	hive数据类型
+整型	bigint	BIGINT
+整型	int	BIGINT
+整型	smallint	BIGINT
+整型	tinyint	BIGINT
+浮点型	decimal	decimal
+浮点型	double	DOUBLE
+浮点型	float	DOUBLE
+二进制	binary	BINARY
+二进制	varbinary	BINARY
+字符	char	STRING
+字符	varchar	STRING
+字符	mediumtext	STRING
+字符	text	STRING
+时间	datetime	STRING
+时间	time	STRING
+时间	timestamp	STRING
+时间	date	date
+json	json	MAP<STRING,STRING>
+————————————————
+版权声明：本文为CSDN博主「可乐大牛」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/qq_44173974/article/details/113810711
+
+
+数据类型	Hive	SQL Server	MySQL	PostgreSQL
+数值类	bigint	bigint	bigint	bigint
+tinyint	tinyint	tinyint	*
+smallint	smallint	smallint	smallint
+int	int	int	int
+float/double	float	float/double	real/double precision
+decimal	decimal/numeric	decimal	numeric
+布尔类	boolean	bit	tinyint(1)	boolean
+字符类	string	nvarchar	varchar	character varying(varchar)
+string	char	char	character(char)
+string	text	text	text
+日期类	date	date	date	date
+timestamp	datetime	datetime	timestamp
+————————————————
+版权声明：本文为CSDN博主「木子田心的学习笔记」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/weixin_38924697/article/details/119299228
+
+
+
+
+DataX 数据移动Demo
+
+
+-- mysql 读
+{
+    "job": {
+        "setting": {
+            "speed": {
+                 "channel": 3
+            },
+            "errorLimit": {
+                "record": 0,
+                "percentage": 0.02
+            }
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "mysqlreader",
+                    "parameter": {
+                        "username": "root",
+                        "password": "root",
+                        "column": [
+                            "id",
+                            "name"
+                        ],
+                        "splitPk": "db_id",
+                        "connection": [
+                            {
+                                "table": [
+                                    "table"
+                                ],
+                                "jdbcUrl": [
+     "jdbc:mysql://127.0.0.1:3306/database"
+                                ]
+                            }
+                        ]
+                    }
+                },
+               "writer": {
+                    "name": "streamwriter",
+                    "parameter": {
+                        "print":true
+                    }
+                }
+            }
+        ]
+    }
+}
+
+{
+    "job": {
+        "setting": {
+            "speed": {
+                 "channel":1
+            }
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "mysqlreader",
+                    "parameter": {
+                        "username": "root",
+                        "password": "root",
+                        "connection": [
+                            {
+                                "querySql": [
+                                    "select db_id,on_line_flag from db_info where db_id < 10;"
+                                ],
+                                "jdbcUrl": [
+                                    "jdbc:mysql://bad_ip:3306/database",
+                                    "jdbc:mysql://127.0.0.1:bad_port/database",
+                                    "jdbc:mysql://127.0.0.1:3306/database"
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "writer": {
+                    "name": "streamwriter",
+                    "parameter": {
+                        "print": false,
+                        "encoding": "UTF-8"
+                    }
+                }
+            }
+        ]
+    }
+}
+
+-- mysql 写
+
+{
+    "job": {
+        "setting": {
+            "speed": {
+                "channel": 1
+            }
+        },
+        "content": [
+            {
+                 "reader": {
+                    "name": "streamreader",
+                    "parameter": {
+                        "column" : [
+                            {
+                                "value": "DataX",
+                                "type": "string"
+                            },
+                            {
+                                "value": 19880808,
+                                "type": "long"
+                            },
+                            {
+                                "value": "1988-08-08 08:08:08",
+                                "type": "date"
+                            },
+                            {
+                                "value": true,
+                                "type": "bool"
+                            },
+                            {
+                                "value": "test",
+                                "type": "bytes"
+                            }
+                        ],
+                        "sliceRecordCount": 1000
+                    }
+                },
+                "writer": {
+                    "name": "mysqlwriter",
+                    "parameter": {
+                        "writeMode": "insert",
+                        "username": "root",
+                        "password": "root",
+                        "column": [
+                            "id",
+                            "name"
+                        ],
+                        "session": [
+                        	"set session sql_mode='ANSI'"
+                        ],
+                        "preSql": [
+                            "delete from test"
+                        ],
+                        "connection": [
+                            {
+                                "jdbcUrl": "jdbc:mysql://127.0.0.1:3306/datax?useUnicode=true&characterEncoding=gbk",
+                                "table": [
+                                    "test"
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+    }
+}
+
+
+
+
+
+
+
+
+-- PG 读
+
+
+{
+    "job": {
+        "setting": {
+            "speed": {
+            //设置传输速度，单位为byte/s，DataX运行会尽可能达到该速度但是不超过它.
+                 "byte": 1048576
+            },
+            //出错限制
+                "errorLimit": {
+                //出错的record条数上限，当大于该值即报错。
+                "record": 0,
+                //出错的record百分比上限 1.0表示100%，0.02表示2%
+                "percentage": 0.02
+            }
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "postgresqlreader",
+                    "parameter": {
+                        // 数据库连接用户名
+                        "username": "xx",
+                        // 数据库连接密码
+                        "password": "xx",
+                        "column": [
+                            "id","name"
+                        ],
+                        //切分主键
+                        "splitPk": "id",
+                        "connection": [
+                            {
+                                "table": [
+                                    "table"
+                                ],
+                                "jdbcUrl": [
+     "jdbc:postgresql://host:port/database"
+                                ]
+                            }
+                        ]
+                    }
+                },
+               "writer": {
+                    //writer类型
+                    "name": "streamwriter",
+                    //是否打印内容
+                    "parameter": {
+                        "print":true,
+                    }
+                }
+            }
+        ]
+    }
+}
+
+
+{
+    "job": {
+        "setting": {
+            "speed": 1048576
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "postgresqlreader",
+                    "parameter": {
+                        "username": "xx",
+                        "password": "xx",
+                        "where": "",
+                        "connection": [
+                            {
+                                "querySql": [
+                                    "select db_id,on_line_flag from db_info where db_id < 10;"
+                                ],
+                                "jdbcUrl": [
+                                    "jdbc:postgresql://host:port/database", "jdbc:postgresql://host:port/database"
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "writer": {
+                    "name": "streamwriter",
+                    "parameter": {
+                        "print": false,
+                        "encoding": "UTF-8"
+                    }
+                }
+            }
+        ]
+    }
+}
+
+
+-- PG 写
+
+{
+    "job": {
+        "setting": {
+            "speed": {
+                "channel": 1
+            }
+        },
+        "content": [
+            {
+                 "reader": {
+                    "name": "streamreader",
+                    "parameter": {
+                        "column" : [
+                            {
+                                "value": "DataX",
+                                "type": "string"
+                            },
+                            {
+                                "value": 19880808,
+                                "type": "long"
+                            },
+                            {
+                                "value": "1988-08-08 08:08:08",
+                                "type": "date"
+                            },
+                            {
+                                "value": true,
+                                "type": "bool"
+                            },
+                            {
+                                "value": "test",
+                                "type": "bytes"
+                            }
+                        ],
+                        "sliceRecordCount": 1000
+                    }
+                },
+                "writer": {
+                    "name": "postgresqlwriter",
+                    "parameter": {
+                        "username": "xx",
+                        "password": "xx",
+                        "column": [
+                            "id",
+                            "name"
+                        ],
+                        "preSql": [
+                            "delete from test"
+                        ],
+                        "connection": [
+                            {
+                                "jdbcUrl": "jdbc:postgresql://127.0.0.1:3002/datax",
+                                "table": [
+                                    "test"
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+    }
+}
+
+
+-- hive 读
+{
+    "job": {
+        "setting": {
+            "speed": {
+                "channel": 3
+            }
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "hdfsreader",
+                    "parameter": {
+                        "path": "/user/hive/warehouse/mytable01/*",
+                        "defaultFS": "hdfs://xxx:port",
+                        "column": [
+                               {
+                                "index": 0,
+                                "type": "long"
+                               },
+                               {
+                                "index": 1,
+                                "type": "boolean"
+                               },
+                               {
+                                "type": "string",
+                                "value": "hello"
+                               },
+                               {
+                                "index": 2,
+                                "type": "double"
+                               }
+                        ],
+                        "fileType": "orc",
+                        "encoding": "UTF-8",
+                        "fieldDelimiter": ","
+                    }
+
+                },
+                "writer": {
+                    "name": "streamwriter",
+                    "parameter": {
+                        "print": true
+                    }
+                }
+            }
+        ]
+    }
+}
+
+-- hive 写
+
+{
+    "setting": {},
+    "job": {
+        "setting": {
+            "speed": {
+                "channel": 2
+            }
+        },
+        "content": [
+            {
+                "reader": {
+                    "name": "txtfilereader",
+                    "parameter": {
+                        "path": ["/Users/shf/workplace/txtWorkplace/job/dataorcfull.txt"],
+                        "encoding": "UTF-8",
+                        "column": [
+                            {
+                                "index": 0,
+                                "type": "long"
+                            },
+                            {
+                                "index": 1,
+                                "type": "long"
+                            },
+                            {
+                                "index": 2,
+                                "type": "long"
+                            },
+                            {
+                                "index": 3,
+                                "type": "long"
+                            },
+                            {
+                                "index": 4,
+                                "type": "DOUBLE"
+                            },
+                            {
+                                "index": 5,
+                                "type": "DOUBLE"
+                            },
+                            {
+                                "index": 6,
+                                "type": "STRING"
+                            },
+                            {
+                                "index": 7,
+                                "type": "STRING"
+                            },
+                            {
+                                "index": 8,
+                                "type": "STRING"
+                            },
+                            {
+                                "index": 9,
+                                "type": "BOOLEAN"
+                            },
+                            {
+                                "index": 10,
+                                "type": "date"
+                            },
+                            {
+                                "index": 11,
+                                "type": "date"
+                            }
+                        ],
+                        "fieldDelimiter": "\t"
+                    }
+                },
+                "writer": {
+                    "name": "hdfswriter",
+                    "parameter": {
+                        "defaultFS": "hdfs://xxx:port",
+                        "fileType": "orc",
+                        "path": "/user/hive/warehouse/writerorc.db/orcfull",
+                        "fileName": "xxxx",
+                        "column": [
+                            {
+                                "name": "col1",
+                                "type": "TINYINT"
+                            },
+                            {
+                                "name": "col2",
+                                "type": "SMALLINT"
+                            },
+                            {
+                                "name": "col3",
+                                "type": "INT"
+                            },
+                            {
+                                "name": "col4",
+                                "type": "BIGINT"
+                            },
+                            {
+                                "name": "col5",
+                                "type": "FLOAT"
+                            },
+                            {
+                                "name": "col6",
+                                "type": "DOUBLE"
+                            },
+                            {
+                                "name": "col7",
+                                "type": "STRING"
+                            },
+                            {
+                                "name": "col8",
+                                "type": "VARCHAR"
+                            },
+                            {
+                                "name": "col9",
+                                "type": "CHAR"
+                            },
+                            {
+                                "name": "col10",
+                                "type": "BOOLEAN"
+                            },
+                            {
+                                "name": "col11",
+                                "type": "date"
+                            },
+                            {
+                                "name": "col12",
+                                "type": "TIMESTAMP"
+                            }
+                        ],
+                        "writeMode": "append",
+                        "fieldDelimiter": "\t",
+                        "compress":"NONE"
+                    }
+                }
+            }
+        ]
+    }
+}
+
+

@@ -1,0 +1,503 @@
+
+6.3.2 CDH安装
+
+首发于
+大数据专栏
+切换模式
+写文章
+登录/注册
+CDH6.3.2离线安装（附百度网盘CDH安装包）
+随我逐流
+随我逐流
+我问青山何时老，青山语我几日闲。
+35 人赞同了该文章
+一、前期规划选型
+如果是生产环境，建议从以下几方面考虑集群的规划
+
+1.硬件确定
+可以选用服务器、普通PC、还是云服务。
+一是项目实际需求，二还要结合预算情况、现有的条件来选择。
+
+2.集群规模确定
+从数据量、计算性能要求、可靠稳定性、容错性等方面考虑。
+
+数据量
+现有数据量（如现有历史数据）和增量数据（日增、月增数据，一般需要考虑满足1-2年的容量，后续再扩容）；
+数据的副本数（Hadoop默认3副本，乘3倍）；
+数据清洗、融合加工处理、共享等过程产生的，中间表、指标表、主题/专题库等表（乘3-5倍）。注意：HDFS上不同格式的表压缩比也不一样，如文本txt表不压缩，orc有一定的压缩比（1:3），HBase（看是否采用压缩），ES看索引是否有膨胀；
+储存的冗余量 + 20-30%；
+如：现有各种形式的数据量总共30TB，月增数据1TB（算未来24个月），全部都要放到HDFS中存储，默认3副本，ETL数据处理全部用txt表（共享服务HBase、ES等混用）就按照1:1的压缩比储存，算上ODS、清洗融合加工中间表、指标表、主题库/专题课等取4倍。如下计算：
+(30 + 1* 24) * 3 * 4 * 1.25 = 810 TB
+需要总的磁盘空间810TB，如果是10个数据储存节点，那么每个节点至少要大于81TB的空间，可以挂 9块* 10TB。
+计算
+根据使用到的大数据组件服务来预估
+如基于内存的服务对内存的要求，对磁盘IO使用比较频繁的是否考虑多块盘，清洗融合加工频繁的对cpu的要求等等
+可靠稳定性
+集群规模大的，需要区分管理节点、数据储存和计算节点（或者叫工作节点）。
+容错性
+如果考虑对各个服务或者某些服务做HA的，需要再考虑加节点资源。
+如果考虑做灾备集群的，需要再加1倍的资源。
+此外，还要考虑网络，是否是双网口？千兆还是万兆网络？
+从上面几方面确定集群规模，节点数、每个节点的物理配置（CPU、Memery、磁盘空间）、集群网络等
+3.软件版本确定
+操作系统
+JDK版本
+CM/CDH版本（包含hadoop、spark等版本是否满足实际需求）
+元数据库（如MySQL）
+根据以上的规划确认，生成安装前的《硬件资源》《集群角色规划》《大数据集群安装方案》等文档。
+
+此次基于3物理机来安装测试环境，简单的基本信息如下：
+《硬件资源信息》：
+
+
+
+
+《集群角色规划》：由于只有三个节点，所以不存在多麻烦的角色规划了
+
+
+
+
+二、环境准备
+1.CDH安装包下载
+CDH官方的网站已经无法直接下载安装包了（需要账号密码），需要找一些之前下载过的人索取。
+
+链接：https://pan.baidu.com/s/1dpyhF6TRXaqryab6ZVVXfw 
+提取码：1cuo 
+复制这段内容后打开百度网盘手机App，操作更方便哦--来自百度网盘超级会员V8的分享
+CM
+
+CDH
+
+2.安装配置操作系统
+安装CentOS 7.6
+<略>
+cat /etc/redhat-release
+注意分区参考：
+
+/boot 1G
+/boot/efi 200M
+/home 100G
+/swap 2G
+/ 剩余全部给根目录
+
+
+
+注意：
+可以考虑添加2G的swap分区。如果没有在装机的时候分割出来，可以参考下面方法：
+https://www.cnblogs.com/CandiceW/p/10317918.html
+
+使用dd命令创建名为swapfile 的swap交换文件（文件名和目录任意）:
+dd if=/dev/zero of=/var/swapfile bs=1024 count=2048k
+对交换文件格式化并转换为swap分区:
+mkswap /var/swapfile
+挂载并激活分区:
+swapon /var/swapfile
+听从系统的建议修改下权限:
+chmod -R 0600 /var/swapfile
+修改 fstab 配置，设置开机自动挂载该分区:
+echo "/var/swapfile swap swap defaults 0 0" >> /etc/fstab
+配置静态IP
+vi /etc/sysconfi/network-scripts/ifcfg-xxxx
+
+
+
+service network restart
+
+配置yum源
+（1）、备份，将 CentOS-Base.repo 为CentOS-Base.repo.backup
+cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.backup
+（2）、下载新的 http://mirrors.aliyun.com/repo/Centos-7.repo,并命名为CentOS-Base.repo
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+或者
+curl -o /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+（3）、清除缓存
+yum clean all # 清除系统所有的yum缓存
+yum makecache # 生成yum缓存
+
+问题：
+1.某些台式机安装过程中识别不到硬盘？
+http://www.zhaoyongjie.cn/post/224.html
+
+2.HP惠普电脑开机提示 检测到无效签名，开不了机的解决方法
+https://bangongit.com/post-552.html
+
+三、环境配置
+1.修改hostname（所有节点）
+hostnamectl set-hostname cdh01
+其他节点：
+hostnamectl set-hostname cdh02
+hostnamectl set-hostname cdh03
+
+2.配置节点的IP-主机名映射信息（所有节点）
+vi /etc/hosts
+192.168.20.16 cdh01
+192.168.20.17 cdh02
+192.168.20.35 cdh03
+
+3.关闭防火墙（所有节点）
+systemctl stop firewalld
+systemctl disable firewalld
+systemctl status firewalld
+
+4.关闭SeLinux（所有节点）
+执行getenforce指令查看selinux状态，如果输出为：enforcing，则需要处理一下，否则可以跳过这一步。
+修改/etc/selinux/config文件（在某些系统中，可能是/etc/sysconfig/selinux文件），将SELINUX=enforcing修改为SELINUX=disabled
+更新配置之后要重启服务器生效，或者执行：setenforce 0，使其立即生效。
+注意：也可以使用sed -i s/SELINUX=enforcing/SELINUX=disabled/g /etc/selinux/config
+
+5.配置免密登录（所有节点）
+生成ssh key：
+ssh-keygen -t rsa （每个节点执行）
+cdh01上操作互信配置：
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh02
+ssh-copy-id -i ~/.ssh/id_rsa.pub cdh03
+cdh02、cdh03上同上面操作类似，完成互信配置。
+
+6.设置swap空间、关闭大页面压缩（所有节点）——性能考虑
+1.swap空间设置
+swappiness=0：表示最大限度使用物理內存，之后才是swap空间；
+swappiness=100：表示积极使用swap分区，並且把內存上的数据及时转移到swap空间；
+如果是混合服务器，不建议完全禁用swap，可以尝试降低swappiness。
+
+Cloudera 建议将 /proc/sys/vm/swappiness 设置为 10（也有说改为0的，Cloudera建议将交换空间设置为0，过多的交换空间会引起GC耗时的激增。）。当前设置为 60。使用 sysctl 命令在运行时更改该设置并编辑 /etc/sysctl.conf 以在重启后保存该设置。
+echo 10 > /proc/sys/vm/swappiness
+这样操作重启机器还是还原，要永久改变：
+echo "vm.swappiness = 10" >> /etc/sysctl.conf
+
+2.已启用透明大页面压缩，可能会导致重大性能问题，建议禁用此設置。
+调整：
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+7.NTP服务安装和设置
+Hadoop对集群中各个机器的时间同步要求比较高，要求各个机器的系统时间不能相差太多，不然会造成很多问题。可以配置集群中各个机器和互联网的时间服务器进行时间同步，但是在实际生产环境中，集群中大部分服务器是不能连接外网的，这时候可以在内网搭建一个自己的时间服务器（NTP服务器），集群的各个机器与这个时间服务器进行时间同步。我们选择其中一个节点cdh01机器作为NTP服务器，其他机器和它自动同步。
+安装NTP（所有节点）
+yum -y install ntp
+
+Manager节点：
+设置指向NTP服务器，如果局域网内有时间服务器，可以指向时间服务器（manager节点-cdh01）
+vi /etc/ntp.conf
+注释掉之前的server，然后添加以下NTP服务器
+server http://ntp.aliyun.com
+
+其他节点：
+vi /etc/ntp.conf
+集群的其他节点指向第一个（cdh02、cdh03）
+server cdh01
+重新启动 ntp 服务和设置开机自启（所有节点）：
+service ntpd restart
+systemctl enable ntpd.service
+
+查看和测试：
+ntpdc -c loopinfo #查看与时间同步服务器的时间偏差
+ntpq -p #查看当前同步的时间服务器
+ntpstat #查看状态定时同步crontab
+crontab -e #可以不用设置
+10 * * * * /usr/sbin/ntpdate centos1
+
+四、配置和安装CDH
+1.配置CM源
+注意：操作系统可以先配置本地yum。CDH的安装包都是rpm包。如果使用rpm安装方式安装起来是比较复杂的，会有很多依赖问题需要解决，就需要使用yum帮助我们解决依赖问题。（也可以是在线的阿里yum源，之前在按照好操作系统之后已经设置了aliyun的yum，所有这里省略centos yum源）
+
+配置CM源：
+在cdh01节点上安装并启动httpd
+#安装
+yum install httpd
+#启动
+service httpd start
+#开机自启
+systemctl enable httpd
+或者chkconfig httpd on
+
+将端口号修改为：6789 (可选项操作，默认是80，这里使用默认的端口)
+$ vi /etc/httpd/conf/httpd.conf
+增加/修改端口号如下：
+Listen 6789
+
+cd /var/www/html/进入到这个目录下
+mkdir cm6; mkdir cdh6
+#将cdh的安装包和cm的包拷贝到创建的目录
+#拷贝cm安装包和jdk到cm6
+cp cloudera-manager-* /var/www/html/cm6/
+cp enterprise-debuginfo-6.3.1-1466458.el7.x86_64.rpm /var/www/html/cm6
+cp oracle-j2sdk1.8-1.8.0+update181-1.x86_64.rpm /var/www/html/cm6
+#拷贝cdh安装包和元数据文件
+cp CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel /var/www/html/cdh6/
+cp manifest.json /var/www/html/cdh6/
+
+安装createrepo命令，然后进入到cm6目录创建yum源
+yum install -y createrepo #下载createrepo
+cd /var/www/html/cm6 #命令进入到cm6安装包的httpd资源位置
+createrepo . #创建yum源的描述meta
+
+配置yum源（每个节点）
+cat >> /etc/yum.repos.d/cm.repo << EOF
+
+[CM]
+name=cm6
+baseurl=http://cdh01/cm6/
+gpgcheck=0
+EOF
+
+查看yum配置源是否生效
+yum clean all
+yum repolist
+
+2.安装
+安装依赖（所有节点）
+yum install -y bind-utils libxslt cyrus-sasl-plain cyrus-sasl-gssapi portmap fuse-libs /lib/lsb/init-functions httpd mod_ssl openssl-devel python-psycopg2 Mysql-python fuse
+
+安装cloudera-manager和agent（cdh01）
+#安装JDK
+yum install -y oracle-j2sdk1.8.x86_64
+#安装cloudera-manager
+yum install -y cloudera-manager-agent cloudera-manager-daemons cloudera-manager-server cloudera-manager-server-db-2 postgresq-server
+
+安装Mariadb（cdh01）
+#安装
+yum install -y mariadb-server
+#启动和开机自启
+systemctl start mariadb && systemctl enable mariadb
+#配置Mariadb数据库
+mysql_secure_installation #可以在遇[Y/n]输入y设置密码 [账号/密码：root/shdata]
+
+初始化管理节点数据库(cdh01)
+mkdir -p /usr/share/java
+cp /mnt/lb/mysql-connector-java-5.1.34.jar /usr/share/java/mysql-connector-java.jar（这里需要分发到所有节点）
+执行数据库初始脚本
+/opt/cloudera/cm/schema/scm_prepare_database.sh mysql -h localhost -uroot -pshdata --scm-host localhost scm root root
+注意：初始化完成之后，登录的root账号的密码变成了root，可以根据scm_prepare_database.sh脚本分析出来
+
+安装其他的agent节点（cdh02、cdh03）
+#安装
+yum install -y oracle-j2sdk1.8.x86_64
+#安装agent
+yum install cloudera-manager-daemons cloudera-manager-agent -y
+
+修改配置文件(所有节点)
+修改Cloudera Agent配置文件/etc/cloudera-scm-agent/config.ini，配置server_host为主节点cdh01
+#通过vi命令修改
+vi /etc/cloudera-scm-agent/config.ini
+server_host=cdh01
+#也可以通过sed命令修改（推荐）
+sed -i "s/server_host=localhost/server_host=cdh01/g" /etc/cloudera-scm-agent/config.ini
+
+配置JAVA_HOME(所有节点)
+vi /etc/profile
+#add for JAVA_HOME
+export JAVA_HOME=/usr/java/jdk1.8.0_181-cloudera/
+export PATH=PATH:PATH:PATH:JAVA_HOME/bin
+
+启动CDH
+1.启动Cloudera Manager(cdh01)
+#启动
+service cloudera-scm-server start //systemctl start cloudera-scm-server
+#设置开机自启？？？
+chkconfig cloudera-scm-server on //systemctl enable cloudera-scm-server
+2.启动Cloudera Agent（所有节点）
+#启动
+service cloudera-scm-agent start //systemctl start cloudera-scm-agent
+#开机自启
+//systemctl enable cloudera-scm-agent
+
+可以访问http://192.168.100.10:7180 进行组件服务的安装操作了
+用户名/密码: admin/admin
+
+五、Web页面安装配置
+大部分按照常规的设置即可。
+以下是特别的地方做下记录。
+
+1.集群名字
+Cluster_shdata
+
+2.选择储存库时，远程库的设置
+
+点击这里之后，设置远程库特别注意一下（根据知乎同学的反馈，借用截图。于20210604修改）
+
+借用的截图说明下，下面这个远程Parcel储存库URL就保留一个，用本地的那个parcel，修改成http://cdh01/cdh6就可以了，不要连CDH官网的了地址。
+
+
+
+
+
+
+
+
+3.角色
+按照事先规划的角色分布图来设置
+
+4.数据库配置（cdh01节点）
+mysql -uroot -proot
+
+create database hive default charset utf8;
+-- create user 'hive'@'%' identified by '123456';
+-- grant all on hive.* TO 'hive'@'localhost' identified by '123456';
+grant all on hive.* TO 'hive'@'%' identified by '123456';
+flush privileges;
+
+create database oozie default charset utf8;
+grant all on oozie.* TO 'oozie'@'%' identified by '123456';
+flush privileges;
+
+create database hue default charset utf8;
+grant all on hue.* TO 'hue'@'%' identified by '123456';
+flush privileges;
+
+create database reports default charset utf8;
+grant all on reports.* to 'reports'@'%' identified by '123456';
+flush privileges;
+
+注意1：如果元数据库的客户端在其他机器上，需要将mysql的驱动jar包放到对应节点上。且在web页面上要选择正确的主机节点，默认都是去找本地的mysql
+mkdir -p /usr/share/java
+scp root@cdh01:/mnt/lb/mysql-connector-java-5.1.34.jar /usr/share/java/mysql-connector-java.jar
+
+
+其他步骤都比较简单，按照提示即可操作
+
+最终成功界面
+
+
+
+注意：
+
+有知友反馈缺少allkeys.asc，分享一个，将其拷贝到/var/www/html/cm6 即可（但我印象中第一次确实没有传这个）
+
+链接：https://pan.baidu.com/s/1yPssWSjOxdS6kizAJLrmlg
+
+提取码：oye1
+
+编辑于 2021-06-04 18:56
+Hadoop
+大数据
+CDH(Cloudera)
+​赞同 35​
+​48 条评论
+​分享
+​喜欢
+​收藏
+​申请转载
+​
+
+赞同 35
+
+​
+分享
+写下你的评论...
+
+48 条评论
+默认
+最新
+烽火
+烽火
+未在已配置的存储库中找到任何 parcel。
+2022-01-25
+​回复
+​1
+xiaote
+xiaote
+一般是parcel文件放置不正确，或者文件存在缺失
+2022-03-11
+​回复
+​喜欢
+烽火
+烽火
+未在已配置的存储库中找到任何 parcel。怎么解决
+2022-01-25
+​回复
+​1
+北茶555
+北茶555
+为什么会提示我没有server和agent的安装包呢
+2021-10-12
+​回复
+​1
+冰封夕阳
+冰封夕阳
+我在执行#安装cloudera-manager命令 yum install -y cloudera... postgresq-server时，报错没有postgresq-server的rpm包，请问有什么解决方式吗？
+
+2023-12-28
+​回复
+​喜欢
+ighack
+ighack
+像这样的hosts 一定要去掉
+
+192.168.0.74 iZ8vb5u39q1u1gyrg3vuskZ iZ8vb5u39q1u1gyrg3vuskZ
+
+2023-10-17
+​回复
+​喜欢
+才华横溢的混蛋
+才华横溢的混蛋
+
+云盘好像没有server的rpm包？
+
+2022-11-02
+​回复
+​喜欢
+金继长
+金继长
+兄弟，我现在需要在ARM架构的系统上安装，有ARM架构的安装包下载地址吗？ 感谢[拜托]
+2022-05-10
+​回复
+​喜欢
+Payne
+Payne
+安装完成了，allkeys.asc 这个没用到，我的centos版本的是7.3
+2022-04-30
+​回复
+​喜欢
+林中有渔
+林中有渔
+这么神奇的吗。不要的话我界面操作那时会提示找不到。加上就好。
+
+2023-07-28
+​回复
+​喜欢
+方格眼
+方格眼
+求CM ，官方直接社保了，找不到了，以后岂不是都得离线安装
+2022-04-24
+​回复
+​喜欢
+floating clouds
+floating clouds
+大佬 所有流程都走了，但是到访问7180端口的时候，页面报错；虚拟机中也没有这个7180端口服务，您遇到过吗？求解惑
+2022-04-16
+​回复
+​喜欢
+欸祤
+欸祤
+还有一个9000端口。可以试一下。不行的话就是你内存磁盘原因。你可以减少服务器加大你的内存，完了再试一次
+2022-05-13
+​回复
+​喜欢
+点击查看全部评论
+写下你的评论...
+
+文章被以下专栏收录
+大数据专栏
+大数据专栏
+个人大数据学习总结
+在大千世界里找一丝联系
+在大千世界里找一丝联系
+在大千世界里找一丝联系，天要下雨时，蚂蚁要搬家。
+推荐阅读
+CDH6.3.2离线安装文档（附百度网盘CDH安装包）
+集群信息集群信息IPhostname节点类型192.168.159.9lbmaster管理节点192.168.160.221lbnode1数据节点192.168.160.222lbnode2数据节点192.168.160.198lbnode3数据节点 基础环境配置(所有主机…
+
+五分钟学大数据
+CDH安装踩坑记
+CDH安装踩坑记
+陈尚安
+安装CM 6.3.1和CDH 6.3.2
+安装CM 6.3.1和CDH 6.3.2
+斜杠代码日...
+发表于大数据 |...
+如何在CDH中部署及使用Kylin
+如何在CDH中部署及使用Kylin
+Kyligence
+
+
+选择语言
+选择语言

@@ -1,0 +1,240 @@
+
+
+Q1: 将附件中 ip_china.csv.zip文件加载为 Hive 内部表，保持格式与 csv header一致，表需要开启压缩
+
+hdfs dfs -mkdir /gaosen/data/ip_china
+hdfs dfs -put ip_china.csv /gaosen/data/ip_china
+
+drop table if exists ip_china1;
+create table ip_china1( 
+ip_start string,
+ip_end string,
+long_ip_start string,
+long_ip_end string,
+country string,
+province string
+) COMMENT 'ip_china'
+row format delimited fields terminated by ',' 
+stored as textfile
+tblproperties ('skip.header.line.count'='1');
+
+load data inpath '/gaosen/data/ip_china/' OVERWRITE into table gaosen_dev.ip_china1;
+
+
+drop table if exists ip_china;
+create table ip_china( 
+ip_start string,
+ip_end string,
+long_ip_start string,
+long_ip_end string,
+country string,
+province string
+) COMMENT 'ip_china'
+row format delimited fields terminated by ',' 
+stored as parquet;
+
+set hive.exec.compress.output=true;
+set mapred.compress.map.output=true;
+set mapred.output.compress=true;
+set mapred.output.compression=org.apache.hadoop.io.compress.SnappyCodec;
+set mapred.output.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+set io.compression.codecs=org.apache.hadoop.io.compress.SnappyCodec;
+
+insert overwrite table ip_china select ip_start,ip_end,long_ip_start,long_ip_end,country,province from ip_china1;
+
+select * from ip_china limit 10;
+
+Q2: 将附件中 login_data.csv.zip文件加载为 Hive 外部表，保持格式与csv header一致，表需要开启压缩，需要按日分区
+
+hdfs dfs -mkdir /gaosen/data/login_data
+hdfs dfs -put login_data.csv /gaosen/data/login_data
+
+drop table if exists login_data1;
+create table login_data1( 
+logtime string,
+account_id string,
+ip string
+) COMMENT 'login_data1'
+row format delimited fields terminated by ',' 
+stored as textfile
+tblproperties ('skip.header.line.count'='1');
+
+load data inpath '/gaosen/data/login_data/' OVERWRITE into table gaosen_dev.login_data1;
+
+
+drop table if exists login_data;
+create table login_data( 
+logtime string,
+account_id string,
+user_ip string
+) COMMENT 'login_data'
+PARTITIONED BY (`pt` string)
+row format delimited fields terminated by ',' 
+stored as parquet;
+
+set hive.exec.compress.output=true;
+set mapred.compress.map.output=true;
+set mapred.output.compress=true;
+set mapred.output.compression=org.apache.hadoop.io.compress.SnappyCodec;
+set mapred.output.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+set io.compression.codecs=org.apache.hadoop.io.compress.SnappyCodec;
+
+set hive.exec.dynamic.partition.mode=nonstrict;
+insert overwrite table login_data partition(pt) select logtime,account_id,ip,substring(logtime,1,10) pt from login_data1;
+
+select * from login_data limit 10;
+
+Q3: 通过Q1，Q2加载的数据，将用户登陆表中的ip转化为对应的国家地区并落表（避免笛卡尔积）
+
+drop table if exists user_login_data;
+create table user_login_data( 
+logtime string,
+account_id string,
+country string, 
+province string,
+user_ip string
+) COMMENT 'user_login_data'
+PARTITIONED BY (`pt` string)
+row format delimited fields terminated by ',' 
+stored as parquet;
+
+insert overwrite table user_login_data partition(pt)
+select logtime, account_id, country, province, user_ip, substring(logtime,1,10) pt
+from login_data
+full join ip_china
+where user_ip between ip_start and ip_end
+
+
+Q4: 请输出每个分区下，每个province的去重登陆人数。输出结构为 pt，province，cnt_login
+
+select pt,province,count(distinct account_id) cnt_login 
+from user_login_data group by pt,province;
+
+OK
+2019-07-15      上海    19
+2019-07-15      云南    6
+2019-07-15      内蒙古  3
+2019-07-15      北京    34
+2019-07-15      台湾    2
+2019-07-15      吉林    2
+2019-07-15      四川    17
+2019-07-15      天津    11
+2019-07-15      宁夏    3
+2019-07-15      安徽    4
+2019-07-15      山东    9
+2019-07-15      山西    2
+2019-07-15      广东    70
+2019-07-15      广西    16
+2019-07-15      新疆    8
+2019-07-15      江苏    20
+2019-07-15      江西    15
+2019-07-15      河北    32
+2019-07-15      河南    18
+2019-07-15      浙江    35
+2019-07-15      海南    2
+2019-07-15      湖北    10
+2019-07-15      湖南    6
+2019-07-15      甘肃    5
+2019-07-15      福建    6
+2019-07-15      贵州    8
+2019-07-15      辽宁    9
+2019-07-15      重庆    11
+2019-07-15      陕西    15
+2019-07-15      香港    2
+2019-07-15      黑龙江  4
+2019-08-04      上海    27
+2019-08-04      云南    4
+2019-08-04      内蒙古  8
+2019-08-04      北京    33
+2019-08-04      台湾    3
+2019-08-04      吉林    5
+2019-08-04      四川    12
+2019-08-04      天津    11
+2019-08-04      安徽    4
+2019-08-04      山东    24
+2019-08-04      山西    6
+2019-08-04      广东    71
+2019-08-04      广西    8
+2019-08-04      新疆    8
+2019-08-04      江苏    29
+2019-08-04      江西    4
+2019-08-04      河北    26
+2019-08-04      河南    9
+2019-08-04      浙江    24
+2019-08-04      海南    1
+2019-08-04      湖北    11
+2019-08-04      湖南    11
+2019-08-04      甘肃    4
+2019-08-04      福建    7
+2019-08-04      贵州    5
+2019-08-04      辽宁    13
+2019-08-04      重庆    12
+2019-08-04      陕西    10
+2019-08-04      青海    4
+2019-08-04      香港    4
+2019-08-04      黑龙江  4
+
+
+Q5: 请输出总量数据下，存在登陆数据的各个province中，登陆时间最早的前3人及对应的登陆时间，若不满3人，需要留空。
+输出结构为 province，account_id_1, login_time_1, account_id_2, login_time_2, account_id_3, login_time_3
+
+select province,
+if(max(account_id_1) != '',max(account_id_1),'') account_id_1,
+if(max(login_time_1) != '',max(login_time_1),'') login_time_1,
+if(max(account_id_2) != '',max(account_id_2),'') account_id_2,
+if(max(login_time_2) != '',max(login_time_2),'') login_time_2,
+if(max(account_id_3) != '',max(account_id_3),'') account_id_3,
+if(max(login_time_3) != '',max(login_time_3),'') login_time_3
+from (select province, 
+case when rn = 1 then account_id else '' end as account_id_1,
+case when rn = 1 then logtime else '' end as login_time_1,
+case when rn = 2 then account_id else '' end as account_id_2,
+case when rn = 2 then logtime else '' end as login_time_2,
+case when rn = 3 then account_id else '' end as account_id_3,
+case when rn = 3 then logtime else '' end as login_time_3
+from (select province, logtime, account_id, row_number() over(partition by province order by logtime) rn
+from user_login_data) a 
+where rn <=3) b 
+group by province;
+
+
+OK
+上海    227530  2019-07-15 00:00:03     219516  2019-07-15 00:00:03     214114  2019-07-15 00:00:04
+云南    231327  2019-07-15 00:00:16     231327  2019-07-15 00:00:16     227300  2019-07-15 00:00:18
+内蒙古  223232  2019-07-15 00:00:07     222736  2019-07-15 00:00:16     231190  2019-07-15 00:00:34
+北京    226531  2019-07-15 00:00:00     213334  2019-07-15 00:00:03     227315  2019-07-15 00:00:03
+台湾    230374  2019-07-15 00:00:08     222746  2019-07-15 00:00:25     229028  2019-08-04 00:00:09
+吉林    214114  2019-07-15 00:00:04     214114  2019-07-15 00:00:04     214114  2019-07-15 00:00:05
+四川    226196  2019-07-15 00:00:00     222397  2019-07-15 00:00:02     222397  2019-07-15 00:00:02
+天津    224510  2019-07-15 00:00:02     112443  2019-07-15 00:00:03     230577  2019-07-15 00:00:05
+宁夏    225877  2019-07-15 00:00:00     221733  2019-07-15 00:00:02     221697  2019-07-15 00:00:37
+安徽    231265  2019-07-15 00:00:15     226200  2019-07-15 00:00:16     226200  2019-07-15 00:00:16
+山东    231615  2019-07-15 00:00:01     231615  2019-07-15 00:00:01     231615  2019-07-15 00:00:01
+山西    229891  2019-07-15 00:00:17     229891  2019-07-15 00:00:17     219836  2019-07-15 00:00:25
+广东    228549  2019-07-15 00:00:00     223764  2019-07-15 00:00:00     223764  2019-07-15 00:00:00
+广西    231599  2019-07-15 00:00:00     231599  2019-07-15 00:00:00     208181  2019-07-15 00:00:03
+新疆    222109  2019-07-15 00:00:03     230194  2019-07-15 00:00:09     230194  2019-07-15 00:00:09
+江苏    226186  2019-07-15 00:00:00     226186  2019-07-15 00:00:00     222701  2019-07-15 00:00:01
+江西    231616  2019-07-15 00:00:00     226735  2019-07-15 00:00:01     226735  2019-07-15 00:00:01
+河北    229080  2019-07-15 00:00:01     231615  2019-07-15 00:00:01     226735  2019-07-15 00:00:01
+河南    229080  2019-07-15 00:00:01     222865  2019-07-15 00:00:01     229080  2019-07-15 00:00:01
+浙江    230333  2019-07-15 00:00:00     230333  2019-07-15 00:00:00     230213  2019-07-15 00:00:02
+海南    104606  2019-07-15 00:00:15     104606  2019-07-15 00:00:15     210407  2019-07-15 00:00:17
+湖北    230577  2019-07-15 00:00:05     100511  2019-07-15 00:00:08     100511  2019-07-15 00:00:08
+湖南    229491  2019-07-15 00:00:10     226399  2019-07-15 00:00:12     226399  2019-07-15 00:00:15
+甘肃    223386  2019-07-15 00:00:02     223386  2019-07-15 00:00:02     228789  2019-07-15 00:00:23
+福建    230432  2019-07-15 00:00:01     219737  2019-07-15 00:00:01     219737  2019-07-15 00:00:01
+贵州    231615  2019-07-15 00:00:01     231615  2019-07-15 00:00:01     231615  2019-07-15 00:00:03
+辽宁    230333  2019-07-15 00:00:00     223386  2019-07-15 00:00:02     224954  2019-07-15 00:00:10
+重庆    214921  2019-07-15 00:00:05     227696  2019-07-15 00:00:06     222408  2019-07-15 00:00:13
+陕西    208181  2019-07-15 00:00:03     208181  2019-07-15 00:00:03     218959  2019-07-15 00:00:05
+青海    225263  2019-08-04 00:00:01     223295  2019-08-04 00:00:16     221846  2019-08-04 00:00:21
+香港    231289  2019-07-15 00:00:03     220241  2019-07-15 00:00:28     230243  2019-08-04 00:00:06
+黑龙江  231289  2019-07-15 00:00:03     231289  2019-07-15 00:00:03     231496  2019-07-15 00:00:13
+
+
+
+
+
+
+

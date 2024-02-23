@@ -1,0 +1,70 @@
+
+
+TaskName
+
+SourceUsername
+SourcePassword
+SourceJdbcUrl
+
+
+SourceType
+SourceName
+SourceDatabaseName
+SourceSchemaName
+SourceTableName
+SourceWhere
+（where 筛选条件）
+SourceSplit
+（数据切分键）
+SourceFields
+	SynchronousField
+	FieldName
+	FieldDescription
+	FieldDataType
+
+
+SinkType
+SinkName
+SinkDatabaseName
+SinkSchemaName
+SinkTableName
+SinkCreateTableMode
+建表模式
+SinkDataSaveMode
+数据保存模式（全量，按时间增量，数据对比增量）
+SinkPartition
+SinkFields
+	FieldName
+	FieldDescription
+	FieldDataType
+	FieldDefault
+	
+	
+
+"defaultFS": "hdfs://node2:8020",
+"path": "/mydatax",
+"fileName": "tb",
+"fileType": "text",
+"compress": "gzip",
+"fieldDelimiter": "\t",
+"writeMode": "append"
+
+
+
+
+
+
+一个可以单表迁移任务的创建，修改。
+
+一个可以多表分多个单表任务迁移的创建，修改。
+（需要乾坤支持公用一个任务id）
+
+
+
+
+
+
+
+
+
+

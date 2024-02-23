@@ -1,0 +1,14 @@
+
+
+DolphinScheduler服务启停​
+脚本 ​​./bin/dolphinscheduler-daemon.sh​​ 除了可以快捷启动 standalone 外，还能停止服务运行，全部命令如下
+
+启动服务
+sh ./bin/dolphinscheduler-daemon.sh start standalone-server
+1.
+停止服务
+sh ./bin/dolphinscheduler-daemon.sh stop standalone-server
+
+https://blog.51cto.com/lidabai/5457553
+
+

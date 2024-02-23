@@ -1,0 +1,56 @@
+血缘关系
+
+open-metadata血缘关系底层数据结构
+https://docs.open-metadata.org/sdk/python/ingestion/lineage
+
+{
+  "entity": {
+    "id": "e7bee99b-5c5e-43ec-805c-8beba04804f5",
+    "type": "table",
+    "name": "tableA",
+    "fullyQualifiedName": "test-service-db-lineage.test-db.test-schema.tableA",
+    "deleted": false,
+    "href": "http://localhost:8585/api/v1/tables/e7bee99b-5c5e-43ec-805c-8beba04804f5"
+  },
+  "nodes": [
+    {
+      "id": "800caa0f-a149-48d2-a0ce-6ca84501767e",
+      "type": "table",
+      "name": "tableB",
+      "fullyQualifiedName": "test-service-db-lineage.test-db.test-schema.tableB",
+      "deleted": false,
+      "href": "http://localhost:8585/api/v1/tables/800caa0f-a149-48d2-a0ce-6ca84501767e"
+    }
+  ],
+  "upstreamEdges": [],
+  "downstreamEdges": [
+    {
+      "fromEntity": "e7bee99b-5c5e-43ec-805c-8beba04804f5",
+      "toEntity": "800caa0f-a149-48d2-a0ce-6ca84501767e"
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
