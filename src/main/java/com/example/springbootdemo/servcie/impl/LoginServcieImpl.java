@@ -25,16 +25,19 @@ import java.util.Objects;
 public class LoginServcieImpl implements LoginServcie {
 
     @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
 
     @Autowired
     private RedisCache redisCache;
+
+    public LoginServcieImpl(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
 
     @Override
     public ResponseResult login(User user){
         // 用户名，密码认证
         UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(user.getUserName(), user.getPassword());
-        // authenticationManager.authenticate会调用getUserDetailsService().loadUserByUsername(username);进行身份验证。
         Authentication authentication = authenticationManager.authenticate(authenticationToken);
         if(Objects.isNull(authentication)){
             throw new RuntimeException("用户名或密码错误");

@@ -2,6 +2,7 @@ package com.example.springbootdemo.dao;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.activerecord.Model;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,7 +19,7 @@ import java.util.Date;
 @AllArgsConstructor
 @NoArgsConstructor
 @TableName(value = "sys_user")
-public class User implements Serializable {
+public class User extends Model<User> implements Serializable {
     private static final long serialVarsionUID = -40356785423868312L;
 
     /**
