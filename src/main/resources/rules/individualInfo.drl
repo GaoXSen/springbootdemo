@@ -1,0 +1,12 @@
+// 邮箱规则
+package com.example.springbootdemo;
+
+import com.example.springbootdemo.dao.IndividualInfo;
+
+rule "Validate Email Address"
+when
+    $individualInfo : IndividualInfo(individualName.matches(".*[~!@#$%^&*\\[\\]{}><'\\\\/?=+￥！？《》【】（）；].*"))
+then
+    // If the individual name contains special characters, set data status to 7
+    System.out.println("数据异常，捕获成功！！！！！！");
+end

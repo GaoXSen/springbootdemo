@@ -1,0 +1,18 @@
+// 邮箱规则
+package com.example.springbootdemo;
+
+import com.example.springbootdemo.dao.Person;
+
+rule "Validate Email Address"
+when
+    $person: Person(email matches "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+then
+    System.out.println($person.getEmail() + " is a valid email address.577686");
+end
+
+rule "Invalid Email Address"
+when
+    $person: Person(email not matches "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+then
+    System.out.println($person.getEmail() + " is not a valid email address.1412345678561234");
+end

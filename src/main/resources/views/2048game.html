@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title><!DOCTYPE html>
+      <html lang="en">
+      <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>2048 Game</title>
+  <style>
+    /* CSS styles for the game */
+    .container {
+      display: grid;
+      grid-template-columns: repeat(4, 100px);
+      grid-gap: 5px;
+      background-color: #bbada0;
+      padding: 10px;
+      width: 420px;
+      margin: 0 auto;
+    }
+    .tile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+      background-color: #cdc1b4;
+    }
+  </style>
+</head>
+<body>
+<h1>2048 Game</h1>
+<div class="container" id="grid-container"></div>
+
+<script>
+  // JavaScript code for the game
+  const size = 4; // Size of the game grid
+  let grid = new Array(size).fill(null).map(() => new Array(size).fill(0));
+
+  function renderGrid() {
+    const container = document.getElementById("grid-container");
+    container.innerHTML = "";
+    for (let i = 0; i < size; i++) {
+      for (let j = 0; j < size; j++) {
+        const tile = document.createElement("div");
+        tile.classList.add("tile");
+        tile.textContent = grid[i][j] ? grid[i][j] : "";
+        container.appendChild(tile);
+      }
+    }
+  }
+
+  function addRandomTile() {
+    const emptyCells = [];
+    for (let i = 0; i < size; i++) {
+      for (let j = 0; j < size; j++) {
+        if (grid[i][j] === 0) {
+          emptyCells.push({ row: i, col: j });
+        }
+      }
+    }
+    if (emptyCells.length > 0) {
+      const { row, col } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      grid[row][col] = Math.random() < 0.9 ? 2 : 4; // 90% chance of 2, 10% chance of 4
+    }
+  }
+
+  function moveLeft() {
+    for (let i = 0; i < size; i++) {
+      for (let j = 1; j < size; j++) {
+        if (grid[i][j] !== 0) {
+          let k = j - 1;
+          while (k >= 0 && grid[i][k] === 0) {
+            k--;
+          }
+          if (k >= 0 && grid[i][k] === grid[i][j]) {
+            grid[i][k] *= 2;
+            grid[i][j] = 0;
+          } else {
+            grid[i][k + 1] = grid[i][j];
+            if (k + 1 !== j) {
+              grid[i][j] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function moveRight() {
+    for (let i = 0; i < size; i++) {
+      for (let j = size - 2; j >= 0; j--) {
+        if (grid[i][j] !== 0) {
+          let k = j + 1;
+          while (k < size && grid[i][k] === 0) {
+            k++;
+          }
+          if (k < size && grid[i][k] === grid[i][j]) {
+            grid[i][k] *= 2;
+            grid[i][j] = 0;
+          } else {
+            grid[i][k - 1] = grid[i][j];
+            if (k - 1 !== j) {
+              grid[i][j] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function moveUp() {
+    for (let j = 0; j < size; j++) {
+      for (let i = 1; i < size; i++) {
+        if (grid[i][j] !== 0) {
+          let k = i - 1;
+          while (k >= 0 && grid[k][j] === 0) {
+            k--;
+          }
+          if (k >= 0 && grid[k][j] === grid[i][j]) {
+            grid[k][j] *= 2;
+            grid[i][j] = 0;
+          } else {
+            grid[k + 1][j] = grid[i][j];
+            if (k + 1 !== i) {
+              grid[i][j] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function moveDown() {
+    for (let j = 0; j < size; j++) {
+      for (let i = size - 2; i >= 0; i--) {
+        if (grid[i][j] !== 0) {
+          let k = i + 1;
+          while (k < size && grid[k][j] === 0) {
+            k++;
+          }
+          if (k < size && grid[k][j] === grid[i][j]) {
+            grid[k][j] *= 2;
+            grid[i][j] = 0;
+          } else {
+            grid[k - 1][j] = grid[i][j];
+            if (k - 1 !== i) {
+              grid[i][j] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function initGame() {
+    grid = new Array(size).fill(null).map(() => new Array(size).fill(0));
+    addRandomTile();
+    addRandomTile();
+    renderGrid();
+  }
+
+  window.addEventListener("keydown", (event) => {
+    let moved = false;
+    // Handle arrow key events
+    switch (event.key) {
+      case "ArrowUp":
+        moveUp();
+        moved = true;
+        break;
+      case "ArrowDown":
+        moveDown();
+        moved = true;
+        break;
+      case "ArrowLeft":
+        moveLeft();
+        moved = true;
+        break;
+      case "ArrowRight":
+        moveRight();
+        moved = true;
+        break;
+    }
+    if (moved) {
+      addRandomTile();
+      renderGrid();
+    }
+  });
+
+  initGame();
+</script>
+</body>
+</html></title>
+</head>
+<body>
+
+</body>
+</html>

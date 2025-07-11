@@ -1,9 +1,7 @@
 package com.example.springbootdemo.dao;
 
 import com.alibaba.fastjson.annotation.JSONField;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,9 +15,6 @@ import java.util.stream.Collectors;
  * @Date 2023/3/28 14:07
  * @Version 1.0
  */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class LoginUser implements UserDetails {
 
     private User user;
@@ -78,4 +73,24 @@ public class LoginUser implements UserDetails {
         return true;
     }
 
+    // Getters and Setters
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public List<String> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<String> permissions) {
+        this.permissions = permissions;
+    }
+
+    public void setAuthorities(List<GrantedAuthority> authorities) {
+        this.authorities = authorities;
+    }
 }

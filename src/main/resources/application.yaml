@@ -1,8 +1,13 @@
 server:
         port: 8088
 spring:
+
+        thymeleaf:
+                cache: false #关闭缓存
+                prefix: classpath:/views/ #调整页面路径
+
         datasource:
-                url: jdbc:mysql://localhost:3300/demo?characterEncoding=utf-8&serverTimezone=UTC
+                url: jdbc:mysql://localhost:3306/demo?characterEncoding=utf-8&serverTimezone=UTC
                 driver-class-name: com.mysql.cj.jdbc.Driver
                 username: root
                 password: gaosen
@@ -11,6 +16,10 @@ spring:
                 redis:
                         host: localhost
                         port: 6379
+
+springdoc:
+        swagger-ui:
+                path: /doc.html
 
 mybatis-plus:
         mapper-locations: classpath:mapper/*Mapper.xml

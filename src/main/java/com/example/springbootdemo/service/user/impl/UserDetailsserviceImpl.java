@@ -1,10 +1,10 @@
-package com.example.springbootdemo.servcie.impl;
+package com.example.springbootdemo.service.user.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.springbootdemo.dao.LoginUser;
 import com.example.springbootdemo.dao.User;
-import com.example.springbootdemo.mapper.MenuMapper;
-import com.example.springbootdemo.mapper.UserMapper;
+import com.example.springbootdemo.dao.mapper.MenuMapper;
+import com.example.springbootdemo.dao.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,15 +14,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Arrays.*;
-
 /**
  * @Author gaosen
  * @Date 2023/3/28 13:48
  * @Version 1.0
  */
 @Service
-public class UserDetailsServcieImpl implements UserDetailsService {
+public class UserDetailsserviceImpl implements UserDetailsService {
 
     @Autowired
     private UserMapper userMapper;

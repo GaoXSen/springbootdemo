@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>2048 Game</title>
+    <style>
+        /* 样式 */
+    </style>
+</head>
+<body>
+<h1>2048 Game</h1>
+<div id="game-board">
+    <table>
+        <tbody>
+        <tr th:each="row : ${board}">
+            <td th:each="tile : ${row}" th:text="${tile}"></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

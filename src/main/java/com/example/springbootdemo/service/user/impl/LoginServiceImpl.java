@@ -1,10 +1,10 @@
-package com.example.springbootdemo.servcie.impl;
+package com.example.springbootdemo.service.user.impl;
 
 import com.example.springbootdemo.common.RedisCache;
 import com.example.springbootdemo.common.ResponseResult;
 import com.example.springbootdemo.dao.LoginUser;
 import com.example.springbootdemo.dao.User;
-import com.example.springbootdemo.servcie.LoginServcie;
+import com.example.springbootdemo.service.user.LoginService;
 import com.example.springbootdemo.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,7 +22,7 @@ import java.util.Objects;
  * @Version 1.0
  */
 @Service
-public class LoginServcieImpl implements LoginServcie {
+public class LoginServiceImpl implements LoginService {
 
     @Autowired
     private final AuthenticationManager authenticationManager;
@@ -30,7 +30,7 @@ public class LoginServcieImpl implements LoginServcie {
     @Autowired
     private RedisCache redisCache;
 
-    public LoginServcieImpl(AuthenticationManager authenticationManager) {
+    public LoginServiceImpl(AuthenticationManager authenticationManager) {
         this.authenticationManager = authenticationManager;
     }
 

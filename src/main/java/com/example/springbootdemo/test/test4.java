@@ -1,4 +1,4 @@
-package com.example.springbootdemo;
+package com.example.springbootdemo.test;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
